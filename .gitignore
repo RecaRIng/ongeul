@@ -1,0 +1,18 @@
+# Node
+node_modules
+**/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# build output
+frontend/dist
+backend/dist
+
+# env files
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
