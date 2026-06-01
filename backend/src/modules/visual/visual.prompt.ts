@@ -1,10 +1,18 @@
 import type { ActionStep, CoreFields } from '../../common/types.js';
 
-export function buildVisualPrompt(coreFields: CoreFields, actionSteps: ActionStep[]) {
+export function buildVisualPrompt(coreFields: CoreFields, actionSteps: ActionStep[]): string {
   return `### MODULE: visual
-설명: 핵심 행동, 준비물, 장소 등 시각화가 필요한 항목을 추출하고, 이미지 생성 API로 넘기기 위한 프롬프트 구조를 만듭니다.
-- 실제 이미지 생성 API 호출은 아직 연결하지 않습니다.
-- visualPrompts 형태로 반환하세요.
+당신은 느린학습자 학생을 위한 문서 구조화 시스템의 시각화 담당입니다.
+
+아래 핵심 정보와 행동 단계를 보고, 시각 카드로 만들면 좋은 항목을 추출하세요.
+
+규칙:
+- 원문에 없는 정보는 절대 추가하지 않는다.
+- 각 카드는 label, target, prompt, imageUrl 형태로 반환한다.
+- imageUrl은 항상 빈 문자열("")로 둔다.
+- card_type은 아래 중에서만 선택한다:
+  date_card | time_card | place_card | material_card | deadline_card | submit_to_card | signature_card | choice_card | step_card | warning_card | result_card
+- 시각 카드가 필요한 항목이 없으면 빈 배열([])을 반환한다.
 
 CORE_FIELDS:
 ${JSON.stringify(coreFields, null, 2)}
@@ -12,12 +20,12 @@ ${JSON.stringify(coreFields, null, 2)}
 ACTION_STEPS:
 ${JSON.stringify(actionSteps, null, 2)}
 
-RESPONSE_FORMAT:
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요:
 [
   {
-    "label": "",
-    "target": "",
-    "prompt": "",
+    "label": "항목 이름",
+    "target": "원문에서 추출한 값",
+    "prompt": "이미지 생성용 설명",
     "imageUrl": ""
   }
 ]

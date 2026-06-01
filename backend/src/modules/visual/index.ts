@@ -1,2 +1,2 @@
-export { generateVisuals } from './visual.service.js';
-export { generateVisualPrompt } from './visual.prompt.js';
+export { generateVisualPrompts } from './visual.service.js';
+export { buildVisualPrompt } from './visual.prompt.js';

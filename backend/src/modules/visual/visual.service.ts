@@ -1,6 +1,26 @@
 import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js';
+import { buildVisualPrompt } from './visual.prompt.js';
+import { callLLM } from '../../common/llm.client.js';
 
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
+  const prompt = buildVisualPrompt(coreFields, actionSteps);
+  const raw = await callLLM(prompt);
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item: Partial<VisualPrompt>) => ({
+        label: item.label ?? '',
+        target: item.target ?? '',
+        prompt: item.prompt ?? '',
+        imageUrl: item.imageUrl ?? ''
+      }));
+    }
+  } catch {
+    console.error('visual JSON 파싱 실패:', raw);
+  }
+
+  // fallback: 기존 로직
   const visuals: VisualPrompt[] = [];
 
   if (coreFields.materials.length > 0) {
