@@ -1,10 +1,10 @@
 import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js';
 import { buildVisualPrompt } from './visual.prompt.js';
-import { callLLM } from '../../common/llm.client.js';
+import { callLlm } from '../../common/llm.client.js';
 
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
   const prompt = buildVisualPrompt(coreFields, actionSteps);
-  const raw = await callLLM(prompt);
+  const raw = await callLlm(prompt);
 
   try {
     const parsed = JSON.parse(raw);
