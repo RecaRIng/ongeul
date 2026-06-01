@@ -23,6 +23,7 @@ ${JSON.stringify(actionSteps, null, 2)}
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요:
 [
   {
+    "cardType": "card_type 목록 중 선택 (date_card | time_card | place_card | material_card | deadline_card | submit_to_card | signature_card | choice_card | step_card | warning_card | result_card)",
     "label": "항목 이름",
     "target": "원문에서 추출한 값",
     "prompt": "이미지 생성용 설명",

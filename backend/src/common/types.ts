@@ -31,6 +31,7 @@ export interface ActionStep {
 }
 
 export interface VisualPrompt {
+  cardType: string;
   label: string;
   target: string;
   prompt: string;
