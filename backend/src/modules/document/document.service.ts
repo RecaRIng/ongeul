@@ -1,4 +1,4 @@
-import type { AnalyzeTextRequest, AnalyzeTextResponse } from '../../common/types.js';
+import type { AnalyzeTextRequest, AnalyzeTextResponse, CoreFields, DocumentType } from '../../common/types.js';
 import { classifyDocument } from '../classification/classification.service.js';
 import { extractCoreFields } from '../extraction/extraction.service.js';
 import { generateEasyText } from '../easyText/easyText.service.js';
@@ -11,16 +11,16 @@ function createTitle(rawText: string): string {
   return firstLine && firstLine.length > 0 ? firstLine.slice(0, 100) : '분석 문서';
 }
 
-function findMissingFields(coreFields: Record<string, unknown>): string[] {
+function findMissingFields(coreFields: CoreFields): string[] {
   return Object.entries(coreFields)
-    .filter(([_, value]) => {
+    .filter(([, value]) => {
       if (Array.isArray(value)) return value.length === 0;
       return typeof value === 'string' && value.trim().length === 0;
     })
     .map(([key]) => key);
 }
 
-function determineOutputPlan(documentType: string, visuals: unknown[], activityMaterials: { checklist: string[] }): {
+function determineOutputPlan(documentType: DocumentType, visuals: unknown[], activityMaterials: { checklist: string[] }): {
   commonBlocks: string[];
   typeBlocks: string[];
   optionalBlocks: string[];
@@ -56,31 +56,31 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
     throw new Error('핵심 정보 추출 중 오류가 발생했습니다.');
   });
 
-  // 3단계: 쉬운글 생성
-  const easyText = await generateEasyText(rawText, coreFields).catch((err) => {
-    console.error('easyText 오류:', err);
-    return { level1: '', level2: '', level3: '' };
-  });
+  // 3~4단계: 쉬운글 생성 + 행동 단계 생성 (병렬)
+  const [easyText, actionSteps] = await Promise.all([
+    generateEasyText(rawText, coreFields).catch((err) => {
+      console.error('easyText 오류:', err);
+      return { level1: '', level2: '', level3: '' };
+    }),
+    generateActionSteps(rawText, coreFields).catch((err) => {
+      console.error('actionSteps 오류:', err);
+      return [];
+    }),
+  ]);
 
-  // 4단계: 행동 단계 생성
-  const actionSteps = await generateActionSteps(rawText, coreFields).catch((err) => {
-    console.error('actionSteps 오류:', err);
-    return [];
-  });
+  // 5~6단계: 시각화 프롬프트 생성 + 활동자료 생성 (병렬)
+  const [visuals, activityMaterials] = await Promise.all([
+    generateVisualPrompts(coreFields, actionSteps).catch((err) => {
+      console.error('visual 오류:', err);
+      return [];
+    }),
+    generateActivityMaterials(rawText, document.documentType, coreFields).catch((err) => {
+      console.error('activity 오류:', err);
+      return { checklist: [], questions: [], matchingCardIdeas: [], coachingGuide: '' };
+    }),
+  ]);
 
-  // 5단계: 시각화 프롬프트 생성
-  const visuals = await generateVisualPrompts(coreFields, actionSteps).catch((err) => {
-    console.error('visual 오류:', err);
-    return [];
-  });
-
-  // 6단계: 활동자료 생성
-  const activityMaterials = await generateActivityMaterials(rawText, document.documentType, coreFields).catch((err) => {
-    console.error('activity 오류:', err);
-    return { checklist: [], questions: [], matchingCardIdeas: [], coachingGuide: '' };
-  });
-
-  const missingFields = findMissingFields(coreFields as unknown as Record<string, unknown>);
+  const missingFields = findMissingFields(coreFields);
   const outputPlan = determineOutputPlan(document.documentType, visuals, activityMaterials);
 
   return {
@@ -98,7 +98,7 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
     metadata: {
       confidence: 'medium',
       missingFields,
-      warnings: coreFields.warnings || []
+      warnings: coreFields.warnings
     }
   };
 }

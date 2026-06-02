@@ -2,6 +2,26 @@ import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js
 import { buildVisualPrompt } from './visual.prompt.js';
 import { callLlm } from '../../common/llm.client.js';
 
+const priority: Record<string, number> = {
+  deadline_card: 1,
+  material_card: 2,
+  place_card: 3,
+  warning_card: 4,
+  step_card: 5,
+  date_card: 6,
+  submit_to_card: 7,
+};
+
+function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
+  visuals.sort((a, b) => (priority[a.cardType] ?? 99) - (priority[b.cardType] ?? 99));
+  const seen = new Set<string>();
+  return visuals.filter(v => {
+    if (seen.has(v.cardType)) return false;
+    seen.add(v.cardType);
+    return true;
+  });
+}
+
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
   const prompt = buildVisualPrompt(coreFields, actionSteps);
   const raw = await callLlm(prompt);
@@ -9,13 +29,13 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.map((item: Partial<VisualPrompt>) => ({
+      return postProcessVisuals(parsed.map((item: Partial<VisualPrompt>) => ({
         cardType: item.cardType ?? '',
         label: item.label ?? '',
         target: item.target ?? '',
         prompt: item.prompt ?? '',
         imageUrl: item.imageUrl ?? ''
-      }));
+      })));
     }
   } catch {
     console.error('visual JSON 파싱 실패:', raw);
@@ -64,7 +84,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
     });
   }
 
-  if (coreFields.warnings && coreFields.warnings.length > 0) {
+  if (coreFields.warnings.length > 0) {
     visuals.push({
       cardType: 'warning_card',
       label: '주의사항',
@@ -94,23 +114,5 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
     });
   }
 
-  const priority: Record<string, number> = {
-    deadline_card: 1,
-    material_card: 2,
-    place_card: 3,
-    warning_card: 4,
-    step_card: 5,
-    date_card: 6,
-    submit_to_card: 7,
-  };
-
-  visuals.sort((a, b) => (priority[a.cardType] ?? 99) - (priority[b.cardType] ?? 99));
-
-  const seen = new Set<string>();
-  const deduplicated = visuals.filter(v => {
-    if (seen.has(v.cardType)) return false;
-    seen.add(v.cardType);
-    return true;
-  });
-  return deduplicated;
+  return postProcessVisuals(visuals);
 }
