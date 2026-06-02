@@ -1,2 +1,2 @@
 export { extractCoreFields } from './extraction.service.js';
-export { generateExtractionPrompt } from './extraction.prompt.js';
+export { buildExtractionPrompt } from './extraction.prompt.js';

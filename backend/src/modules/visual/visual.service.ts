@@ -10,6 +10,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed.map((item: Partial<VisualPrompt>) => ({
+        cardType: item.cardType ?? '',
         label: item.label ?? '',
         target: item.target ?? '',
         prompt: item.prompt ?? '',
