@@ -1,10 +1,10 @@
-import type { AnalyzeTextRequest, AnalyzeTextResponse } from '../../common/types.js';
-import { classifyDocument } from '../classification/classification.service.js';
-import { extractCoreFields } from '../extraction/extraction.service.js';
-import { generateEasyText } from '../easyText/easyText.service.js';
-import { generateActionSteps } from '../actionSteps/actionSteps.service.js';
-import { generateVisualPrompts } from '../visual/visual.service.js';
-import { generateActivityMaterials } from '../activity/activity.service.js';
+import type { AnalyzeTextRequest, AnalyzeTextResponse } from '../../common/types';
+import { classifyDocument } from '../classification/classification.service';
+import { extractCoreFields } from '../extraction/extraction.service';
+import { generateEasyText } from '../easyText/easyText.service';
+import { generateActionSteps } from '../actionSteps/actionSteps.service';
+import { generateVisualPrompts } from '../visual/visual.service';
+import { generateActivityMaterials } from '../activity/activity.service';
 
 function createTitle(rawText: string): string {
   const firstLine = rawText.split(/\r?\n/)[0]?.trim();
@@ -14,9 +14,7 @@ function createTitle(rawText: string): string {
 function findMissingFields(coreFields: Record<string, unknown>) {
   return Object.entries(coreFields)
     .filter(([_, value]) => {
-      if (Array.isArray(value)) {
-        return value.length === 0;
-      }
+      if (Array.isArray(value)) return value.length === 0;
       return typeof value === 'string' && value.trim().length === 0;
     })
     .map(([key]) => key);
@@ -28,8 +26,8 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
 
   const document = await classifyDocument(rawText, title);
   const coreFields = await extractCoreFields(rawText, document.documentType);
-  const easyText = await generateEasyText(rawText, coreFields);
   const actionSteps = await generateActionSteps(rawText, coreFields);
+  const easyText = await generateEasyText(rawText, coreFields, document.documentType, actionSteps);
   const visuals = await generateVisualPrompts(coreFields, actionSteps);
   const activityMaterials = await generateActivityMaterials(rawText, document.documentType, coreFields);
 

@@ -17,10 +17,21 @@ export interface CoreFields {
   warnings: string[];
 }
 
+export interface DifficultWord {
+  word: string;
+  grade: string;
+  definition: string;
+}
+
+export interface EasyTextLevel {
+  text: string;
+  difficultWords: DifficultWord[];
+}
+
 export interface EasyTextLevels {
-  level1: string;
-  level2: string;
-  level3: string;
+  level1: EasyTextLevel;
+  level2: EasyTextLevel;
+  level3: EasyTextLevel;
 }
 
 export interface ActionStep {
