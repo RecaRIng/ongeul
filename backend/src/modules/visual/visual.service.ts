@@ -3,8 +3,14 @@ import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js
 import { buildVisualPrompt } from './visual.prompt.js';
 import { callLlm } from '../../common/llm.client.js';
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+let openai: OpenAI | null | undefined;
+function getOpenAIClient(): OpenAI | null {
+  if (openai === undefined) {
+    const key = process.env.OPENAI_API_KEY;
+    openai = key ? new OpenAI({ apiKey: key }) : null;
+  }
+  return openai;
+}
 
 const priority: Record<string, number> = {
   deadline_card: 1,
@@ -31,7 +37,8 @@ function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
 }
 
 async function generateImage(prompt: string): Promise<string> {
-  if (!openai) return '';
+  const openai = getOpenAIClient();
+  if (!openai || !prompt) return '';
   try {
     const response = await openai.images.generate({
       model: 'gpt-image-1',
