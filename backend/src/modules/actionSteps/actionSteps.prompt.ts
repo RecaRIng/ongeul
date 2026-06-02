@@ -1,0 +1,26 @@
+import type { CoreFields } from '../../common/types';
+
+export function buildActionStepsPrompt(rawText: string, coreFields: CoreFields) {
+  return `### MODULE: actionSteps
+?¤ëª…: ë¬¸ì„œ ?ˆì˜ ì§€?œì‚¬??„ ?™ìƒ???°ë¼ ?????ˆëŠ” ?‰ë™ ?¨ê³„ë¡??˜ëˆ•?ˆë‹¤.
+- ???¨ê³„?ëŠ” ?˜ë‚˜???‰ë™ë§??¬í•¨?©ë‹ˆ??
+- ?œì„œê°€ ?„ìš”??ê²½ìš° ë²ˆí˜¸ë¥?ë¶™ì…?ˆë‹¤.
+- ?ë¬¸???†ëŠ” ?‰ë™?€ ì¶”ê??˜ì? ?ŠìŠµ?ˆë‹¤.
+
+INPUT_TEXT:
+${rawText}
+
+CORE_FIELDS:
+${JSON.stringify(coreFields, null, 2)}
+
+RESPONSE_FORMAT:
+[
+  {
+    "step": 1,
+    "action": "",
+    "reason": "",
+    "visualTarget": ""
+  }
+]
+`;
+}
