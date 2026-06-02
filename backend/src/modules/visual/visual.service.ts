@@ -1,6 +1,10 @@
+import OpenAI from 'openai';
 import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js';
 import { buildVisualPrompt } from './visual.prompt.js';
 import { callLlm } from '../../common/llm.client.js';
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 const priority: Record<string, number> = {
   deadline_card: 1,
@@ -26,6 +30,32 @@ function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
     })());
 }
 
+async function generateImage(prompt: string): Promise<string> {
+  if (!openai) return '';
+  try {
+    const response = await openai.images.generate({
+      model: 'gpt-image-1',
+      prompt,
+      size: '1024x1024',
+      quality: 'low',
+    });
+    const b64 = response.data?.[0]?.b64_json;
+    return b64 ? `data:image/png;base64,${b64}` : '';
+  } catch (err) {
+    console.error('이미지 생성 실패:', err);
+    return '';
+  }
+}
+
+async function enrichWithImages(visuals: VisualPrompt[]): Promise<VisualPrompt[]> {
+  return Promise.all(
+    visuals.map(async (v) => ({
+      ...v,
+      imageUrl: await generateImage(v.prompt),
+    }))
+  );
+}
+
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
   const prompt = buildVisualPrompt(coreFields, actionSteps);
   const raw = await callLlm(prompt);
@@ -33,7 +63,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return postProcessVisuals(
+      const visuals = postProcessVisuals(
         parsed
           .map((item: Partial<VisualPrompt>) => ({
             cardType: item.cardType ?? '',
@@ -44,6 +74,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
           }))
           .filter(v => v.cardType !== '')
       );
+      return enrichWithImages(visuals);
     }
   } catch {
     console.error('visual JSON 파싱 실패:', raw);
@@ -132,5 +163,5 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
     });
   }
 
-  return postProcessVisuals(visuals);
+  return enrichWithImages(postProcessVisuals(visuals));
 }
