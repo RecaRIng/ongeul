@@ -37,10 +37,10 @@ function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
 }
 
 async function generateImage(prompt: string): Promise<string> {
-  const openai = getOpenAIClient();
-  if (!openai || !prompt) return '';
+  const client = getOpenAIClient();
+  if (!client || !prompt) return '';
   try {
-    const response = await openai.images.generate({
+    const response = await client.images.generate({
       model: 'gpt-image-1',
       prompt,
       size: '1024x1024',
@@ -54,20 +54,27 @@ async function generateImage(prompt: string): Promise<string> {
   }
 }
 
+function withTimeout(promise: Promise<string>, ms: number): Promise<string> {
+  return Promise.race([
+    promise,
+    new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
 async function enrichWithImages(visuals: VisualPrompt[]): Promise<VisualPrompt[]> {
   return Promise.all(
     visuals.map(async (v) => ({
       ...v,
-      imageUrl: await generateImage(v.prompt),
+      imageUrl: await withTimeout(generateImage(v.prompt), 10000).catch(() => ''),
     }))
   );
 }
 
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
   const prompt = buildVisualPrompt(coreFields, actionSteps);
-  const raw = await callLlm(prompt);
 
   try {
+    const raw = await callLlm(prompt);
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       const visuals = postProcessVisuals(
@@ -84,7 +91,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       return enrichWithImages(visuals);
     }
   } catch {
-    console.error('visual JSON 파싱 실패:', raw);
+    console.error('visual LLM 호출 또는 JSON 파싱 실패');
   }
 
   // fallback: 기존 로직
