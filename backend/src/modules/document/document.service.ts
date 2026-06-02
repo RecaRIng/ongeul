@@ -33,9 +33,11 @@ function determineOutputPlan(documentType: DocumentType, visuals: VisualPrompt[]
   if (activityMaterials.checklist.length > 0) optionalBlocks.push('checklist');
   optionalBlocks.push('supporting_explanation');
 
-  if (documentType.includes('execution-guide')) typeBlocks.push('execution_guide_block');
-  if (documentType.includes('submission-form')) typeBlocks.push('submission_guide_block');
-  if (documentType.includes('learning-task')) typeBlocks.push('learning_task_block');
+  switch (documentType) {
+    case 'execution-guide': typeBlocks.push('execution_guide_block'); break;
+    case 'submission-form': typeBlocks.push('submission_guide_block'); break;
+    case 'learning-task':   typeBlocks.push('learning_task_block');   break;
+  }
 
   return { commonBlocks, typeBlocks, optionalBlocks };
 }

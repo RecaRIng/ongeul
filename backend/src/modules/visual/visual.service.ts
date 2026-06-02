@@ -24,16 +24,14 @@ const priority: Record<string, number> = {
 };
 
 function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
+  const seen = new Set<string>();
   return [...visuals]
     .sort((a, b) => (priority[a.cardType] ?? 99) - (priority[b.cardType] ?? 99))
-    .filter((() => {
-      const seen = new Set<string>();
-      return (v: VisualPrompt) => {
-        if (seen.has(v.cardType)) return false;
-        seen.add(v.cardType);
-        return true;
-      };
-    })());
+    .filter(v => {
+      if (seen.has(v.cardType)) return false;
+      seen.add(v.cardType);
+      return true;
+    });
 }
 
 async function generateImage(prompt: string): Promise<string> {
@@ -54,11 +52,12 @@ async function generateImage(prompt: string): Promise<string> {
   }
 }
 
-function withTimeout(promise: Promise<string>, ms: number): Promise<string> {
-  return Promise.race([
-    promise,
-    new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ]);
+async function withTimeout(promise: Promise<string>, ms: number): Promise<string> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<string>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('timeout')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 async function enrichWithImages(visuals: VisualPrompt[]): Promise<VisualPrompt[]> {
