@@ -31,9 +31,18 @@ interface GeneratedItem {
   source?: string;
 }
 
+interface VisualCard {
+  cardType: string;
+  label: string;
+  target: string;
+  prompt: string;
+  imageUrl: string;
+}
+
 interface VisualGeneratorProps {
   originalText?: string;
   easyText?: string;
+  visuals?: VisualCard[];
 }
 
 interface Recommendation {
@@ -86,7 +95,7 @@ const RECOMMENDATIONS: Recommendation[] = [
   },
 ];
 
-export default function VisualGenerator({ originalText = '', easyText = '' }: VisualGeneratorProps) {
+export default function VisualGenerator({ originalText = '', easyText = '', visuals = [] }: VisualGeneratorProps) {
   const [selected, setSelected] = useState<Set<ImageType>>(new Set());
   const [openInfo, setOpenInfo] = useState<ImageType | null>(null);
   const [generated, setGenerated] = useState<GeneratedItem[]>([]);
@@ -105,7 +114,16 @@ export default function VisualGenerator({ originalText = '', easyText = '' }: Vi
     });
   };
 
-  const recommendedTypes = new Set(RECOMMENDATIONS.map((r) => r.type));
+  const VALID_TYPES = new Set<ImageType>(['supplies', 'activity', 'sequence', 'word']);
+  const activeRecommendations: Recommendation[] = visuals.length > 0
+    ? visuals.map((v) => ({
+        type: (VALID_TYPES.has(v.cardType as ImageType) ? v.cardType : 'activity') as ImageType,
+        title: v.label,
+        description: v.target,
+      }))
+    : RECOMMENDATIONS;
+
+  const recommendedTypes = new Set(activeRecommendations.map((r) => r.type));
   const generatedTypes = new Set(generated.map((g) => g.type));
 
   const toggle = (type: ImageType) => {
@@ -214,7 +232,7 @@ export default function VisualGenerator({ originalText = '', easyText = '' }: Vi
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {RECOMMENDATIONS.map((rec) => {
+          {activeRecommendations.map((rec) => {
             const alreadyMade = generatedTypes.has(rec.type);
             return (
             <div key={rec.type} className="bg-white rounded-lg p-4 border border-gray-200">

@@ -73,7 +73,7 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
   // 6단계: 활동자료 생성
   const activityMaterials = await generateActivityMaterials(rawText, document.documentType, coreFields).catch((err) => {
     console.error('activity 오류:', err);
-    return { checklist: [], questions: [] };
+    return { checklist: [], questions: [], matchingCardIdeas: [], coachingGuide: '' };
   });
 
   const missingFields = findMissingFields(coreFields as unknown as Record<string, unknown>);
