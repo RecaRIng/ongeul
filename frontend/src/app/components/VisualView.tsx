@@ -9,14 +9,21 @@ interface VisualCard {
   imageUrl: string;
 }
 
+interface OutputPlan {
+  commonBlocks: string[];
+  typeBlocks: string[];
+  optionalBlocks: string[];
+}
+
 interface VisualViewProps {
   onBack: () => void;
   originalText?: string;
   easyText?: string;
   visuals?: VisualCard[];
+  outputPlan?: OutputPlan;
 }
 
-export default function VisualView({ onBack, originalText, easyText, visuals }: VisualViewProps) {
+export default function VisualView({ onBack, originalText, easyText, visuals, outputPlan }: VisualViewProps) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       <button

@@ -55,6 +55,11 @@ interface BackendAnalysis {
     prompt: string;
     imageUrl: string;
   }>;
+  outputPlan?: {
+    commonBlocks: string[];
+    typeBlocks: string[];
+    optionalBlocks: string[];
+  };
 }
 
 export default function App() {
@@ -134,6 +139,7 @@ export default function App() {
     }
 
     const visuals = analysis.visuals || [];
+    const outputPlan = analysis.outputPlan || { commonBlocks: [], typeBlocks: [], optionalBlocks: [] };
 
     return {
       guideSummary: summaryLines.join('\n'),
@@ -143,6 +149,7 @@ export default function App() {
       originalText: analysis.document.rawText,
       words: [],
       visuals,
+      outputPlan,
       activities,
     };
   };
@@ -200,6 +207,7 @@ export default function App() {
             originalText={result.originalText}
             easyText={result.easyText}
             visuals={result.visuals || []}
+            outputPlan={result.outputPlan}
           />
         </main>
       </div>
