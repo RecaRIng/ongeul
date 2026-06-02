@@ -20,18 +20,22 @@ function findMissingFields(coreFields: Record<string, unknown>): string[] {
     .map(([key]) => key);
 }
 
-function determineOutputPlan(documentType: string): {
+function determineOutputPlan(documentType: string, visuals: unknown[], activityMaterials: { checklist: string[] }): {
   commonBlocks: string[];
   typeBlocks: string[];
   optionalBlocks: string[];
 } {
   const commonBlocks = ['guide_summary', 'student_easy_text', 'execution_support_material'];
   const typeBlocks: string[] = [];
-  const optionalBlocks: string[] = ['visual_cards', 'checklist', 'supporting_explanation'];
+  const optionalBlocks: string[] = [];
 
-  if (documentType.includes('실행 안내형')) typeBlocks.push('execution_guide_block');
-  if (documentType.includes('작성·제출형')) typeBlocks.push('submission_guide_block');
-  if (documentType.includes('학습 수행형')) typeBlocks.push('learning_task_block');
+  if (visuals.length > 0) optionalBlocks.push('visual_cards');
+  if (activityMaterials.checklist.length > 0) optionalBlocks.push('checklist');
+  optionalBlocks.push('supporting_explanation');
+
+  if (documentType.includes('execution-guide')) typeBlocks.push('execution_guide_block');
+  if (documentType.includes('submission-form')) typeBlocks.push('submission_guide_block');
+  if (documentType.includes('learning-task')) typeBlocks.push('learning_task_block');
 
   return { commonBlocks, typeBlocks, optionalBlocks };
 }
@@ -77,7 +81,7 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
   });
 
   const missingFields = findMissingFields(coreFields as unknown as Record<string, unknown>);
-  const outputPlan = determineOutputPlan(document.documentType);
+  const outputPlan = determineOutputPlan(document.documentType, visuals, activityMaterials);
 
   return {
     document: {
