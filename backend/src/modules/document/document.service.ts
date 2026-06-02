@@ -1,4 +1,4 @@
-import type { AnalyzeTextRequest, AnalyzeTextResponse, CoreFields, DocumentType } from '../../common/types.js';
+import type { AnalyzeTextRequest, AnalyzeTextResponse, CoreFields, DocumentType, VisualPrompt } from '../../common/types.js';
 import { classifyDocument } from '../classification/classification.service.js';
 import { extractCoreFields } from '../extraction/extraction.service.js';
 import { generateEasyText } from '../easyText/easyText.service.js';
@@ -20,7 +20,7 @@ function findMissingFields(coreFields: CoreFields): string[] {
     .map(([key]) => key);
 }
 
-function determineOutputPlan(documentType: DocumentType, visuals: unknown[], activityMaterials: { checklist: string[] }): {
+function determineOutputPlan(documentType: DocumentType, visuals: VisualPrompt[], activityMaterials: { checklist: string[] }): {
   commonBlocks: string[];
   typeBlocks: string[];
   optionalBlocks: string[];
@@ -45,13 +45,13 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
   const title = payload.title?.trim() || createTitle(rawText);
 
   // 1단계: 문서 분류
-  const document = await classifyDocument(rawText, title).catch((err) => {
+  const docResult = await classifyDocument(rawText, title).catch((err) => {
     console.error('classification 오류:', err);
     throw new Error('문서 분류 중 오류가 발생했습니다.');
   });
 
   // 2단계: 핵심 정보 추출
-  const coreFields = await extractCoreFields(rawText, document.documentType).catch((err) => {
+  const coreFields = await extractCoreFields(rawText, docResult.documentType).catch((err) => {
     console.error('extraction 오류:', err);
     throw new Error('핵심 정보 추출 중 오류가 발생했습니다.');
   });
@@ -74,20 +74,20 @@ export async function analyzeText(payload: AnalyzeTextRequest): Promise<AnalyzeT
       console.error('visual 오류:', err);
       return [];
     }),
-    generateActivityMaterials(rawText, document.documentType, coreFields).catch((err) => {
+    generateActivityMaterials(rawText, docResult.documentType, coreFields).catch((err) => {
       console.error('activity 오류:', err);
       return { checklist: [], questions: [], matchingCardIdeas: [], coachingGuide: '' };
     }),
   ]);
 
   const missingFields = findMissingFields(coreFields);
-  const outputPlan = determineOutputPlan(document.documentType, visuals, activityMaterials);
+  const outputPlan = determineOutputPlan(docResult.documentType, visuals, activityMaterials);
 
   return {
     document: {
       rawText,
-      documentType: document.documentType,
-      title: document.title || title
+      documentType: docResult.documentType,
+      title: docResult.title || title
     },
     coreFields,
     easyText,

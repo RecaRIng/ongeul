@@ -6,6 +6,7 @@ const priority: Record<string, number> = {
   deadline_card: 1,
   material_card: 2,
   place_card: 3,
+  time_card: 3.5,
   warning_card: 4,
   step_card: 5,
   date_card: 6,
@@ -13,13 +14,16 @@ const priority: Record<string, number> = {
 };
 
 function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
-  visuals.sort((a, b) => (priority[a.cardType] ?? 99) - (priority[b.cardType] ?? 99));
-  const seen = new Set<string>();
-  return visuals.filter(v => {
-    if (seen.has(v.cardType)) return false;
-    seen.add(v.cardType);
-    return true;
-  });
+  return [...visuals]
+    .sort((a, b) => (priority[a.cardType] ?? 99) - (priority[b.cardType] ?? 99))
+    .filter((() => {
+      const seen = new Set<string>();
+      return (v: VisualPrompt) => {
+        if (seen.has(v.cardType)) return false;
+        seen.add(v.cardType);
+        return true;
+      };
+    })());
 }
 
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
@@ -29,13 +33,17 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return postProcessVisuals(parsed.map((item: Partial<VisualPrompt>) => ({
-        cardType: item.cardType ?? '',
-        label: item.label ?? '',
-        target: item.target ?? '',
-        prompt: item.prompt ?? '',
-        imageUrl: item.imageUrl ?? ''
-      })));
+      return postProcessVisuals(
+        parsed
+          .map((item: Partial<VisualPrompt>) => ({
+            cardType: item.cardType ?? '',
+            label: item.label ?? '',
+            target: item.target ?? '',
+            prompt: item.prompt ?? '',
+            imageUrl: item.imageUrl ?? ''
+          }))
+          .filter(v => v.cardType !== '')
+      );
     }
   } catch {
     console.error('visual JSON 파싱 실패:', raw);
@@ -60,6 +68,16 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       label: '장소',
       target: coreFields.place,
       prompt: `${coreFields.place}에서 활동하는 학생 모습을 보여주는 이미지`,
+      imageUrl: ''
+    });
+  }
+
+  if (coreFields.time) {
+    visuals.push({
+      cardType: 'time_card',
+      label: '시간',
+      target: coreFields.time,
+      prompt: `${coreFields.time}를 나타내는 시계 또는 시간 이미지`,
       imageUrl: ''
     });
   }
