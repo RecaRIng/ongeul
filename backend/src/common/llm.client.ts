@@ -1,7 +1,11 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { CoreFields, DocumentType } from './types';
 
-const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
+let openai: OpenAI | null = null;
+function getOpenAI(): OpenAI | null {
+  if (!openai && process.env.OPENAI_API_KEY) openai = new OpenAI();
+  return openai;
+}
 
 function extractBlock(prompt: string, label: string): string | null {
   const pattern = new RegExp(`${label}:\n([\\s\\S]*?)(?:\n[A-Z_]+:|$)`, 'i');
@@ -112,17 +116,41 @@ function buildEasyTextFromFields(coreFields: Record<string, unknown>, rawText: s
   const date = String(coreFields.date || '');
   const time = String(coreFields.time || '');
   const place = String(coreFields.place || '');
-  const materials = Array.isArray(coreFields.materials) ? (coreFields.materials as string[]).join('과 ') : '';
+  const materials = Array.isArray(coreFields.materials) ? (coreFields.materials as string[]) : [];
   const deadline = String(coreFields.deadline || '');
   const submissionTarget = String(coreFields.submissionTarget || '');
-  const actions = Array.isArray(coreFields.actions) ? (coreFields.actions as string[]).slice(0, 2) : [];
+  const actions = Array.isArray(coreFields.actions) ? (coreFields.actions as string[]) : [];
+
+  const dateText = date ? `${date}${time ? ` ${time}` : ''}` : '';
+  const placeText = place ? ` ${place}에서` : '';
+  const materialsText = materials.length > 0 ? materials.join(', ') : '';
+  const deadlineText = deadline ? `${deadline}까지` : '';
+  const submissionText = submissionTarget ? `${submissionTarget}께` : '';
 
   return {
-    level1: `${date}${time ? ` ${time}` : ''}${place ? ` ${place}에서` : ''} ${actions.length > 0 ? actions[0] : '활동을 합니다.'}`.trim(),
-    level2: `${date}${time ? ` ${time}` : ''}${place ? ` ${place}에서` : ''} ${actions.length > 0 ? actions[0] : '활동을 합니다.'} 준비물은 ${materials || '없음'}이고${deadline ? ` 제출 기한은 ${deadline}` : ''}${submissionTarget ? `, 제출처는 ${submissionTarget}` : ''}.`.trim(),
-    level3: `${date}${time ? ` ${time}` : ''}${place ? ` ${place}에서` : ''} 활동이 있습니다. ${materials ? `준비물은 ${materials} 입니다. ` : ''}${deadline ? `제출 기한은 ${deadline}이고` : ''}${submissionTarget ? ` 제출처는 ${submissionTarget} 입니다. ` : ''}${rawText.includes('부모님 확인') ? '부모님 확인이 필요합니다.' : ''}`.trim()
+    level1: [
+      dateText ? `${dateText}${placeText} 활동을 해요.` : '활동을 해요.',
+      materialsText ? `${materialsText}을 가져가요.` : '',
+      deadlineText && submissionText ? `${deadlineText} ${submissionText} 내요.` : '',
+    ].filter(Boolean).join(' '),
+
+    level2: [
+      dateText ? `${dateText}${placeText} 활동이 있어요.` : '활동이 있어요.',
+      materialsText ? `준비물은 ${materialsText}이에요.` : '',
+      deadlineText && submissionText ? `신청서를 ${deadlineText} ${submissionText} 제출해요.` : '',
+      actions.length > 0 ? actions[0] : '',
+    ].filter(Boolean).join(' '),
+
+    level3: [
+      dateText ? `${dateText}${placeText} 활동이 있습니다.` : '활동이 있습니다.',
+      materialsText ? `준비물로 ${materialsText}이 필요합니다.` : '',
+      deadlineText && submissionText ? `참가 신청서를 ${deadlineText} ${submissionText} 제출해야 합니다.` : '',
+      actions.length > 0 ? `${actions[0]}` : '',
+      rawText.includes('부모님 확인') ? '부모님 확인이 필요합니다.' : '',
+    ].filter(Boolean).join(' '),
   };
 }
+
 
 export function inferDocumentType(rawText: string): DocumentType {
   return detectDocumentType(rawText);
@@ -146,15 +174,16 @@ export function inferCoreFields(rawText: string): CoreFields {
 }
 
 export async function callLlm(prompt: string): Promise<string> {
-  if (anthropic) {
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }]
+  const client = getOpenAI();
+  if (client) {
+    const response = await client.chat.completions.create({
+      model: 'gpt-5.4-mini-2026-03-17',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 1000,
     });
-    const content = message.content[0];
-    if (content.type === 'text') return content.text;
-    throw new Error('LLM 응답이 텍스트가 아닙니다.');
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('OpenAI 응답이 없습니다.');
+    return content;
   }
   return Promise.resolve(mockLlmResponse(prompt));
 }

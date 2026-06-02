@@ -42,6 +42,18 @@ function needsExplanation(grade: string): boolean {
   return ['3', '4', '5'].includes(grade);
 }
 
+async function fetchKrdictDefinition(word: string): Promise<string | null> {
+  const apiKey = process.env.KRDICT_API_KEY;
+  if (!apiKey) return null;
+
+  const url = `https://krdict.korean.go.kr/api/search?key=${apiKey}&q=${encodeURIComponent(word)}&sort=popular&part=word&num=1`;
+  const res = await fetch(url);
+  const xml = await res.text();
+
+  const match = xml.match(/<definition>([\s\S]*?)<\/definition>/);
+  return match ? match[1].trim() : null;
+}
+
 export async function explainWord(word: string): Promise<DictionaryResult | null> {
   const baseWord = findBaseWord(word);
 
@@ -51,10 +63,15 @@ export async function explainWord(word: string): Promise<DictionaryResult | null
   if (!entry) return null;
 
   const explain = needsExplanation(entry.grade);
-  return {
-    word: baseWord,
-    grade: entry.grade,
-    definition: explain ? entry.definition : '',
-    needsExplanation: explain
-  };
+  if (!explain) return { word: baseWord, grade: entry.grade, definition: '', needsExplanation: false };
+
+  let definition = entry.definition;
+  try {
+    const apiDef = await fetchKrdictDefinition(baseWord);
+    if (apiDef) definition = apiDef;
+  } catch {
+    // API 실패 시 vocab.json 뜻풀이 사용
+  }
+
+  return { word: baseWord, grade: entry.grade, definition, needsExplanation: true };
 }
