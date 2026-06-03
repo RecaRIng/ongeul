@@ -1,4 +1,4 @@
-import type { ActivityMaterials, AnalyzeTextRequest, AnalyzeTextResponse, CoreFields, DocumentType, VisualPrompt } from '../../common/types.js';
+import type { ActivityMaterials, AnalyzeTextRequest, AnalyzeTextResponse, CoreFields, DocumentType, OutputPlan, VisualPrompt } from '../../common/types.js';
 import { classifyDocument } from '../classification/classification.service.js';
 import { extractCoreFields } from '../extraction/extraction.service.js';
 import { generateEasyText } from '../easyText/easyText.service.js';
@@ -20,11 +20,7 @@ function findMissingFields(coreFields: CoreFields): string[] {
   });
 }
 
-function determineOutputPlan(documentType: DocumentType, visuals: VisualPrompt[], activityMaterials: ActivityMaterials): {
-  commonBlocks: string[];
-  typeBlocks: string[];
-  optionalBlocks: string[];
-} {
+function determineOutputPlan(documentType: DocumentType, visuals: VisualPrompt[], activityMaterials: ActivityMaterials): OutputPlan {
   const commonBlocks = ['guide_summary', 'student_easy_text', 'execution_support_material'];
   const typeBlocks: string[] = [];
   const optionalBlocks: string[] = [];

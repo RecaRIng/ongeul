@@ -89,8 +89,8 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       );
       return enrichWithImages(visuals);
     }
-  } catch {
-    console.error('visual LLM 호출 또는 JSON 파싱 실패');
+  } catch (err) {
+    console.error('visual LLM 호출 또는 JSON 파싱 실패:', err);
   }
 
   // fallback: 기존 로직
