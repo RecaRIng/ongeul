@@ -53,7 +53,7 @@ async function generateImage(prompt: string): Promise<string> {
 }
 
 async function withTimeout(promise: Promise<string>, ms: number): Promise<string> {
-  let timeoutId: ReturnType<typeof setTimeout>;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<string>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error('timeout')), ms);
   });

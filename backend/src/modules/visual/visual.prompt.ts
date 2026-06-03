@@ -10,7 +10,7 @@ export function buildVisualPrompt(coreFields: CoreFields, actionSteps: ActionSte
 - 원문에 없는 정보는 절대 추가하지 않는다.
 - 각 카드는 label, target, prompt, imageUrl 형태로 반환한다.
 - imageUrl은 항상 빈 문자열("")로 둔다.
-- card_type은 아래 중에서만 선택한다:
+- cardType은 아래 중에서만 선택한다:
   date_card | time_card | place_card | material_card | deadline_card | submit_to_card | signature_card | choice_card | step_card | warning_card | result_card
 - 시각 카드가 필요한 항목이 없으면 빈 배열([])을 반환한다.
 

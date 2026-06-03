@@ -12,12 +12,12 @@ function createTitle(rawText: string): string {
 }
 
 function findMissingFields(coreFields: CoreFields): string[] {
-  return Object.entries(coreFields)
-    .filter(([, value]) => {
-      if (Array.isArray(value)) return value.length === 0;
-      return typeof value === 'string' && value.trim().length === 0;
-    })
-    .map(([key]) => key);
+  const coreKeys: (keyof CoreFields)[] = ['date', 'time', 'place', 'materials', 'deadline', 'submissionTarget'];
+  return coreKeys.filter(key => {
+    const value = coreFields[key];
+    if (Array.isArray(value)) return value.length === 0;
+    return typeof value === 'string' && value.trim().length === 0;
+  });
 }
 
 function determineOutputPlan(documentType: DocumentType, visuals: VisualPrompt[], activityMaterials: ActivityMaterials): {
