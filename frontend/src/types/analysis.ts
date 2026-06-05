@@ -16,10 +16,21 @@ export interface DocumentInfo {
   title: string;
 }
 
+export interface DifficultWord {
+  word: string;
+  grade: string;
+  definition: string;
+}
+
+export interface EasyTextLevel {
+  text: string;
+  difficultWords: DifficultWord[];
+}
+
 export interface EasyTextResult {
-  level1: string;
-  level2: string;
-  level3: string;
+  level1: EasyTextLevel;
+  level2: EasyTextLevel;
+  level3: EasyTextLevel;
 }
 
 export interface ActivityMaterials {

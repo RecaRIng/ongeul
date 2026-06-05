@@ -1,4 +1,4 @@
-import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types';
+import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js';
 
 export async function generateVisualPrompts(coreFields: CoreFields, actionSteps: ActionStep[]): Promise<VisualPrompt[]> {
   const visuals: VisualPrompt[] = [];
@@ -7,25 +7,25 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
     visuals.push({
       label: '준비물',
       target: coreFields.materials.join(', '),
-      prompt: `?�생??${coreFields.materials.join(', ')}??준비하???�면`,
+      prompt: `학생이 ${coreFields.materials.join('와/과 ')}을 준비하는 장면을 보여주는 이미지`,
       imageUrl: ''
     });
   }
 
   if (coreFields.place) {
     visuals.push({
-      label: '?�소',
+      label: '장소',
       target: coreFields.place,
-      prompt: `${coreFields.place}?�서 ?�동?�는 ?�생??모습`,
+      prompt: `${coreFields.place}에서 활동하는 학생 모습을 보여주는 이미지`,
       imageUrl: ''
     });
   }
 
   if (visuals.length === 0 && actionSteps.length > 0) {
     visuals.push({
-      label: '?�동',
+      label: '행동',
       target: actionSteps[0].action,
-      prompt: `${actionSteps[0].action} ?�면`,
+      prompt: `${actionSteps[0].action} 장면을 보여주는 이미지`,
       imageUrl: ''
     });
   }

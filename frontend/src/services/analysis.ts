@@ -13,9 +13,9 @@ export function formatAnalysisResult(data: AnalysisResponse) {
 }
 
 export function getEasyTextByLevel(easyText: EasyTextResult, level: 1 | 2 | 3): string {
-  if (level === 1) return easyText.level1;
-  if (level === 2) return easyText.level2;
-  return easyText.level3;
+  if (level === 1) return easyText.level1.text;
+  if (level === 2) return easyText.level2.text;
+  return easyText.level3.text;
 }
 
 export function formatActivityMaterials(data: AnalysisResponse) {

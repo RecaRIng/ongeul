@@ -15,6 +15,17 @@ interface VocabularyWord {
   examples: string[];
 }
 
+interface DifficultWord {
+  word: string;
+  grade: string;
+  definition: string;
+}
+
+interface EasyTextLevel {
+  text: string;
+  difficultWords: DifficultWord[];
+}
+
 interface BackendAnalysis {
   document: {
     rawText: string;
@@ -32,9 +43,9 @@ interface BackendAnalysis {
     warnings: string[];
   };
   easyText: {
-    level1: string;
-    level2: string;
-    level3: string;
+    level1: EasyTextLevel;
+    level2: EasyTextLevel;
+    level3: EasyTextLevel;
   };
   actionSteps: Array<{
     step: number;
@@ -52,14 +63,9 @@ interface BackendAnalysis {
 
 function getImageFormat(file: File): 'png' | 'jpg' | 'jpeg' {
   const extension = file.name.split('.').pop()?.toLowerCase();
-
-  if (extension === 'png' || extension === 'jpg' || extension === 'jpeg') {
-    return extension;
-  }
-
+  if (extension === 'png' || extension === 'jpg' || extension === 'jpeg') return extension;
   if (file.type === 'image/png') return 'png';
   if (file.type === 'image/jpeg') return 'jpg';
-
   throw new Error('jpg, jpeg, png 이미지만 업로드할 수 있습니다.');
 }
 
@@ -120,47 +126,28 @@ export default function App() {
     const activities: Array<any> = [];
 
     if (analysis.activityMaterials.checklist.length) {
-      activities.push({
-        type: 'checklist',
-        title: '체크리스트',
-        items: analysis.activityMaterials.checklist
-      });
+      activities.push({ type: 'checklist', title: '체크리스트', items: analysis.activityMaterials.checklist });
     }
 
     if (analysis.activityMaterials.questions.length) {
-      activities.push({
-        type: 'questions',
-        title: '확인 질문',
-        items: analysis.activityMaterials.questions,
-        answers: []
-      });
+      activities.push({ type: 'questions', title: '확인 질문', items: analysis.activityMaterials.questions, answers: [] });
     }
 
     if (analysis.activityMaterials.matchingCardIdeas.length) {
       const ideas = analysis.activityMaterials.matchingCardIdeas;
       const half = Math.ceil(ideas.length / 2);
-      activities.push({
-        type: 'matching',
-        title: '카드 연결 활동',
-        leftCards: ideas.slice(0, half),
-        rightCards: ideas.slice(half),
-        items: []
-      });
+      activities.push({ type: 'matching', title: '카드 선잇기 활동', leftCards: ideas.slice(0, half), rightCards: ideas.slice(half), items: [] });
     }
 
     if (analysis.actionSteps.length) {
-      activities.push({
-        type: 'steps',
-        title: '행동 단계',
-        items: analysis.actionSteps.map((step) => `${step.step}. ${step.action}`)
-      });
+      activities.push({ type: 'steps', title: '행동 단계', items: analysis.actionSteps.map((step) => `${step.step}. ${step.action}`) });
     }
 
     return {
       guideSummary: summaryLines.join('\n'),
-      easyText: analysis.easyText.level2 || '',
-      easierText: analysis.easyText.level1,
-      detailedText: analysis.easyText.level3,
+      easyText: analysis.easyText.level2.text || '',
+      easierText: analysis.easyText.level1.text,
+      detailedText: analysis.easyText.level3.text,
       originalText: analysis.document.rawText,
       words: [],
       activities
@@ -174,9 +161,7 @@ export default function App() {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
@@ -309,12 +294,8 @@ export default function App() {
         onClick={() => setIsVocabOpen(true)}
         className="fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg transition-all flex items-center justify-center group"
         style={{ backgroundColor: '#354d3f' }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#2a3d32';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#354d3f';
-        }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2a3d32'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#354d3f'; }}
       >
         <BookMarked className="w-6 h-6" />
         {vocabularyWords.length > 0 && (

@@ -1,4 +1,11 @@
+import OpenAI from 'openai';
 import type { CoreFields, DocumentType } from './types';
+
+let openai: OpenAI | null = null;
+function getOpenAI(): OpenAI | null {
+  if (!openai && process.env.OPENAI_API_KEY) openai = new OpenAI();
+  return openai;
+}
 
 function extractBlock(prompt: string, label: string): string | null {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -9,10 +16,7 @@ function extractBlock(prompt: string, label: string): string | null {
 
 function parseJsonBlock(prompt: string, label: string): unknown | null {
   const block = extractBlock(prompt, label);
-  if (!block) {
-    return null;
-  }
-
+  if (!block) return null;
   try {
     return JSON.parse(block);
   } catch {
@@ -42,9 +46,7 @@ function findPattern(rawText: string, patterns: RegExp[]): string {
   const text = normalizeText(rawText);
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match?.[1]) {
-      return match[1].trim();
-    }
+    if (match?.[1]) return match[1].trim();
   }
   return '';
 }
@@ -96,10 +98,7 @@ function findPlace(rawText: string): string {
 function parseListField(rawText: string, label: string): string[] {
   const regex = new RegExp(`${label}(?:은|는|:)?\\s*([^\\n\\.]+)`, 'i');
   const match = rawText.match(regex);
-  if (!match?.[1]) {
-    return [];
-  }
-
+  if (!match?.[1]) return [];
   return match[1]
     .split(/[,，、]+|\s*와\s*|\s*과\s*|\s*및\s*/)
     .map((item) => item.replace(/(입니다|입니다\.|입니다!|입니다\?|\.)$/i, '').trim())
@@ -111,9 +110,7 @@ function cleanPhrase(text: string): string {
 }
 
 function cleanDeadline(text: string): string {
-  return cleanPhrase(text)
-    .replace(/\s*까지$/i, '')
-    .trim();
+  return cleanPhrase(text).replace(/\s*까지$/i, '').trim();
 }
 
 function cleanSubmissionTarget(text: string): string {
@@ -161,10 +158,7 @@ function findMaterials(rawText: string): string[] {
 
   const preparedItems = [...rawText.matchAll(/([가-힣A-Za-z0-9\s]{1,12}?)(?:을|를)\s*준비/g)]
     .map((match) => cleanMaterialItem(match[1]))
-    .filter((item) => (
-      item.length > 0 &&
-      !/(보고서|발표 자료|자료|복장|발표|정리)/.test(item)
-    ));
+    .filter((item) => item.length > 0 && !/(보고서|발표 자료|자료|복장|발표|정리)/.test(item));
 
   if (/사진(?:을)?\s*(?:\d+장\s*이상\s*)?(?:붙여|첨부)/.test(rawText) || /사진\s*\d+장/.test(rawText)) {
     foundMaterials.push('사진');
@@ -175,14 +169,11 @@ function findMaterials(rawText: string): string[] {
 
 function addUniqueAction(actions: string[], action: string): void {
   const trimmed = action.trim();
-  if (trimmed.length > 0 && !actions.includes(trimmed)) {
-    actions.push(trimmed);
-  }
+  if (trimmed.length > 0 && !actions.includes(trimmed)) actions.push(trimmed);
 }
 
 function findLearningActions(text: string): string[] {
   const actions: string[] = [];
-
   if (/책을\s*골라/.test(text)) addUniqueAction(actions, '읽은 책 고르기');
   if (/독서록을\s*써\s*오세요/.test(text)) addUniqueAction(actions, '독서록 쓰기');
   if (/책\s*제목.*줄거리.*느낀\s*점/.test(text)) addUniqueAction(actions, '책 제목, 줄거리, 느낀 점 적기');
@@ -202,7 +193,6 @@ function findLearningActions(text: string): string[] {
   }
   if (/문제를\s*풀어오세요/.test(text)) addUniqueAction(actions, '문제 풀어오기');
   if (/답을\s*쓰세요/.test(text)) addUniqueAction(actions, '답 쓰기');
-
   return actions;
 }
 
@@ -213,14 +203,9 @@ function findActions(rawText: string): string[] {
   let match;
 
   while ((match = bulletRegex.exec(rawText)) !== null) {
-    if (match[1]) {
-      addUniqueAction(actions, match[1]);
-    }
+    if (match[1]) addUniqueAction(actions, match[1]);
   }
-
-  if (actions.length > 0) {
-    return actions.slice(0, 5);
-  }
+  if (actions.length > 0) return actions.slice(0, 5);
 
   const learningActions = findLearningActions(text);
   const submitActions: string[] = [];
@@ -229,26 +214,16 @@ function findActions(rawText: string): string[] {
   for (const sentence of sentences) {
     const trimmed = sentence.trim();
     if (trimmed.length === 0) continue;
-
     if (/제출/.test(trimmed)) {
       addUniqueAction(submitActions, trimmed.replace(/제출합니다$/, '제출하기').replace(/제출하세요$/, '제출하기'));
       continue;
     }
-
-    if (/(준비|작성|발표|참가|조사|확인|연락)/.test(trimmed)) {
-      addUniqueAction(actions, trimmed);
-    }
+    if (/(준비|작성|발표|참가|조사|확인|연락)/.test(trimmed)) addUniqueAction(actions, trimmed);
   }
 
-  if (learningActions.length > 0) {
-    return [...learningActions, ...submitActions].slice(0, 5);
-  }
-
+  if (learningActions.length > 0) return [...learningActions, ...submitActions].slice(0, 5);
   const fallbackActions = [...actions, ...submitActions];
-  if (fallbackActions.length > 0) {
-    return fallbackActions.slice(0, 5);
-  }
-
+  if (fallbackActions.length > 0) return fallbackActions.slice(0, 5);
   return [text.slice(0, 100)];
 }
 
@@ -275,30 +250,35 @@ export function inferDocumentType(rawText: string): DocumentType {
 export function inferCoreFields(rawText: string): CoreFields {
   const materials = findMaterials(rawText);
   const warnings = parseListField(rawText, '주의사항');
-  const deadline = findDeadline(rawText);
-  const submissionTarget = findSubmissionTarget(rawText);
-
   return {
     date: findDate(rawText),
     time: findTime(rawText),
     place: findPlace(rawText),
     materials,
-    deadline,
-    submissionTarget,
+    deadline: findDeadline(rawText),
+    submissionTarget: findSubmissionTarget(rawText),
     actions: findActions(rawText),
     warnings: warnings.length > 0 ? warnings : rawText.includes('확인') ? ['부모님 확인 필요'] : []
   };
 }
 
 export async function callLlm(prompt: string): Promise<string> {
+  const client = getOpenAI();
+  if (client) {
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 1000,
+    });
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('OpenAI 응답이 없습니다.');
+    return content;
+  }
   return Promise.resolve(mockLlmResponse(prompt));
 }
 
 export function safeJsonParse<T = unknown>(response: string): T | null {
-  if (typeof response !== 'string' || response.trim().length === 0) {
-    return null;
-  }
-
+  if (typeof response !== 'string' || response.trim().length === 0) return null;
   const trimmed = response.trim();
 
   try {
@@ -310,41 +290,27 @@ export function safeJsonParse<T = unknown>(response: string): T | null {
   try {
     const firstBraceIdx = trimmed.indexOf('{');
     const firstBracketIdx = trimmed.indexOf('[');
-
     let startIdx = -1;
-    if (firstBraceIdx !== -1 && firstBracketIdx !== -1) {
-      startIdx = Math.min(firstBraceIdx, firstBracketIdx);
-    } else if (firstBraceIdx !== -1) {
-      startIdx = firstBraceIdx;
-    } else if (firstBracketIdx !== -1) {
-      startIdx = firstBracketIdx;
-    }
-
+    if (firstBraceIdx !== -1 && firstBracketIdx !== -1) startIdx = Math.min(firstBraceIdx, firstBracketIdx);
+    else if (firstBraceIdx !== -1) startIdx = firstBraceIdx;
+    else if (firstBracketIdx !== -1) startIdx = firstBracketIdx;
     if (startIdx === -1) return null;
 
     const lastBraceIdx = trimmed.lastIndexOf('}');
     const lastBracketIdx = trimmed.lastIndexOf(']');
-
     let endIdx = -1;
-    if (lastBraceIdx !== -1 && lastBracketIdx !== -1) {
-      endIdx = Math.max(lastBraceIdx, lastBracketIdx);
-    } else if (lastBraceIdx !== -1) {
-      endIdx = lastBraceIdx;
-    } else if (lastBracketIdx !== -1) {
-      endIdx = lastBracketIdx;
-    }
-
+    if (lastBraceIdx !== -1 && lastBracketIdx !== -1) endIdx = Math.max(lastBraceIdx, lastBracketIdx);
+    else if (lastBraceIdx !== -1) endIdx = lastBraceIdx;
+    else if (lastBracketIdx !== -1) endIdx = lastBracketIdx;
     if (endIdx === -1 || endIdx < startIdx) return null;
 
     return JSON.parse(trimmed.substring(startIdx, endIdx + 1)) as T;
   } catch {
-    // 파싱 실패
+    return null;
   }
-
-  return null;
 }
 
-function mockLlmResponse(prompt: string): string {
+export function mockLlmResponse(prompt: string): string {
   if (prompt.includes('MODULE: classification')) {
     const rawText = extractBlock(prompt, 'INPUT_TEXT') ?? '';
     const documentType = detectDocumentType(rawText);
@@ -354,6 +320,7 @@ function mockLlmResponse(prompt: string): string {
 
   if (prompt.includes('MODULE: extraction')) {
     const rawText = extractBlock(prompt, 'INPUT_TEXT') ?? '';
+    const warnings = parseListField(rawText, '주의사항');
     return JSON.stringify({
       date: findDate(rawText),
       time: findTime(rawText),
@@ -362,9 +329,7 @@ function mockLlmResponse(prompt: string): string {
       deadline: findDeadline(rawText),
       submissionTarget: findSubmissionTarget(rawText),
       actions: findActions(rawText),
-      warnings: parseListField(rawText, '주의사항').length > 0
-        ? parseListField(rawText, '주의사항')
-        : rawText.includes('확인') ? ['부모님 확인 필요'] : []
+      warnings: warnings.length > 0 ? warnings : rawText.includes('확인') ? ['부모님 확인 필요'] : []
     });
   }
 
@@ -379,13 +344,12 @@ function mockLlmResponse(prompt: string): string {
     const actions = Array.isArray(coreFields?.actions) ? (coreFields.actions as string[]) : [];
     const place = String(coreFields?.place || '');
     const target = String(coreFields?.materials ? (coreFields.materials as string[]).join(' ') : '') || place;
-    const steps = actions.slice(0, 5).map((action, index) => ({
+    return JSON.stringify(actions.slice(0, 5).map((action, index) => ({
       step: index + 1,
       action,
       reason: action.includes('제출') ? '정해진 기한과 제출처를 지키기 위해' : '과제를 정확히 준비하기 위해',
       visualTarget: target || action
-    }));
-    return JSON.stringify(steps);
+    })));
   }
 
   if (prompt.includes('MODULE: visual')) {
@@ -394,31 +358,9 @@ function mockLlmResponse(prompt: string): string {
     const materials = Array.isArray(coreFields?.materials) ? (coreFields.materials as string[]) : [];
     const place = String(coreFields?.place || '');
     const visuals: Array<{ label: string; target: string; prompt: string; imageUrl: string }> = [];
-
-    if (materials.length > 0) {
-      visuals.push({
-        label: '준비물',
-        target: materials.join(', '),
-        prompt: `학생이 ${materials.join('와/과 ')}을 준비하는 장면을 보여주는 이미지`,
-        imageUrl: ''
-      });
-    }
-    if (place) {
-      visuals.push({
-        label: '장소',
-        target: place,
-        prompt: `${place}에서 활동하는 학생 모습을 보여주는 이미지`,
-        imageUrl: ''
-      });
-    }
-    if (visuals.length === 0 && actions.length > 0) {
-      visuals.push({
-        label: '행동',
-        target: actions[0],
-        prompt: `${actions[0]} 장면을 보여주는 이미지`,
-        imageUrl: ''
-      });
-    }
+    if (materials.length > 0) visuals.push({ label: '준비물', target: materials.join(', '), prompt: `학생이 ${materials.join('와/과 ')}을 준비하는 장면을 보여주는 이미지`, imageUrl: '' });
+    if (place) visuals.push({ label: '장소', target: place, prompt: `${place}에서 활동하는 학생 모습을 보여주는 이미지`, imageUrl: '' });
+    if (visuals.length === 0 && actions.length > 0) visuals.push({ label: '행동', target: actions[0], prompt: `${actions[0]} 장면을 보여주는 이미지`, imageUrl: '' });
     return JSON.stringify(visuals);
   }
 
@@ -434,10 +376,7 @@ function mockLlmResponse(prompt: string): string {
         `어디에서 ${actions[0] ?? '활동'}을 하나요?`,
         '무엇을 준비해야 하나요?'
       ],
-      matchingCardIdeas: [
-        `${materials.join(' 카드')}과 행동 카드를 연결하기`,
-        '날짜/시간 카드와 장소 카드를 짝짓기'
-      ],
+      matchingCardIdeas: [`${materials.join(' 카드')}과 행동 카드를 연결하기`, '날짜/시간 카드와 장소 카드를 짝짓기'],
       coachingGuide: '학생이 준비물을 미리 챙기도록 돕고, 날짜와 제출처를 다시 한 번 확인하도록 안내하세요.'
     });
   }

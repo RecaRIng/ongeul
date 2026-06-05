@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import dotenv from 'dotenv';
 import documentRouter from './modules/document/document.controller';
+import easyTextRouter from './modules/easyText/easyText.controller';
 
 dotenv.config();
 
@@ -8,11 +9,12 @@ const app = express();
 
 app.use(express.json({ limit: '15mb' }));
 app.use('/api/analyze', documentRouter);
+app.use('/api/easytext', easyTextRouter);
 
 app.get('/', (_req: Request, res: Response) => {
   res.json({
     status: 'ongle-backend',
-    message: 'POST /api/analyze/text ?�는 /api/analyze/image �?분석???�청?�세??'
+    message: 'POST /api/analyze/text 또는 /api/analyze/image 로 분석을 요청하세요.'
   });
 });
 
