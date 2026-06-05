@@ -21,6 +21,11 @@ interface ResultData {
   originalText?: string;
   words: Array<{ word: string; meaning: string; examples: string[] }>;
   activities: Activity[];
+  outputPlan?: {
+    commonBlocks: string[];
+    typeBlocks: string[];
+    optionalBlocks: string[];
+  };
 }
 
 interface ResultViewProps {
@@ -166,40 +171,44 @@ export default function ResultView({ data, savedWords, onSaveWord, onShowChildVi
       </div>
 
       {/* 시각 자료 만들기 (다른 페이지로 이동) */}
-      <button
-        onClick={onShowVisuals}
-        className="w-full rounded-xl p-6 border text-left transition-opacity hover:opacity-90"
-        style={{ backgroundColor: '#e0e7df', borderColor: '#82987f' }}
-      >
-        <div className="flex items-center gap-3">
-          <ImageIcon className="w-6 h-6 flex-shrink-0 text-gray-900" />
-          <div className="flex-1">
-            <h2 className="text-lg font-bold text-gray-900">시각 자료 만들기</h2>
-            <p className="text-sm text-gray-700 mt-1">
-              문서 내용을 그림으로 만들어 아이의 이해를 도와요.
-            </p>
+      {(!data.outputPlan || data.outputPlan.optionalBlocks.includes('visual_cards')) && (
+        <button
+          onClick={onShowVisuals}
+          className="w-full rounded-xl p-6 border text-left transition-opacity hover:opacity-90"
+          style={{ backgroundColor: '#e0e7df', borderColor: '#82987f' }}
+        >
+          <div className="flex items-center gap-3">
+            <ImageIcon className="w-6 h-6 flex-shrink-0 text-gray-900" />
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-gray-900">시각 자료 만들기</h2>
+              <p className="text-sm text-gray-700 mt-1">
+                문서 내용을 그림으로 만들어 아이의 이해를 도와요.
+              </p>
+            </div>
+            <ArrowRight className="w-5 h-5 flex-shrink-0 text-gray-900" />
           </div>
-          <ArrowRight className="w-5 h-5 flex-shrink-0 text-gray-900" />
-        </div>
-      </button>
+        </button>
+      )}
 
       {/* 활동 자료 만들기 (다른 페이지로 이동) */}
-      <button
-        onClick={onShowActivities}
-        className="w-full rounded-xl p-6 border text-left transition-opacity hover:opacity-90"
-        style={{ backgroundColor: '#e0e7df', borderColor: '#82987f' }}
-      >
-        <div className="flex items-center gap-3">
-          <CheckSquare className="w-6 h-6 flex-shrink-0" style={{ color: '#354d3f' }} />
-          <div className="flex-1">
-            <h2 className="text-lg font-bold text-gray-900">활동 자료 만들기</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              아이와 함께 해볼 수 있는 활동과 온글 코치의 팁을 확인해보세요.
-            </p>
+      {(!data.outputPlan || data.outputPlan.optionalBlocks.includes('checklist')) && (
+        <button
+          onClick={onShowActivities}
+          className="w-full rounded-xl p-6 border text-left transition-opacity hover:opacity-90"
+          style={{ backgroundColor: '#e0e7df', borderColor: '#82987f' }}
+        >
+          <div className="flex items-center gap-3">
+            <CheckSquare className="w-6 h-6 flex-shrink-0" style={{ color: '#354d3f' }} />
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-gray-900">활동 자료 만들기</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                아이와 함께 해볼 수 있는 활동과 온글 코치의 팁을 확인해보세요.
+              </p>
+            </div>
+            <ArrowRight className="w-5 h-5 flex-shrink-0" style={{ color: '#354d3f' }} />
           </div>
-          <ArrowRight className="w-5 h-5 flex-shrink-0" style={{ color: '#354d3f' }} />
-        </div>
-      </button>
+        </button>
+      )}
 
       {/* 아이와 함께 보기 */}
       <button

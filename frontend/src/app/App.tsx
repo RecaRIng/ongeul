@@ -59,6 +59,18 @@ interface BackendAnalysis {
     matchingCardIdeas: string[];
     coachingGuide: string;
   };
+  visuals: Array<{
+    cardType: string;
+    label: string;
+    target: string;
+    prompt: string;
+    imageUrl: string;
+  }>;
+  outputPlan?: {
+    commonBlocks: string[];
+    typeBlocks: string[];
+    optionalBlocks: string[];
+  };
 }
 
 function getImageFormat(file: File): 'png' | 'jpg' | 'jpeg' {
@@ -143,6 +155,9 @@ export default function App() {
       activities.push({ type: 'steps', title: '행동 단계', items: analysis.actionSteps.map((step) => `${step.step}. ${step.action}`) });
     }
 
+    const visuals = analysis.visuals || [];
+    const outputPlan = analysis.outputPlan || { commonBlocks: [], typeBlocks: [], optionalBlocks: [] };
+
     return {
       guideSummary: summaryLines.join('\n'),
       easyText: analysis.easyText.level2.text || '',
@@ -150,7 +165,9 @@ export default function App() {
       detailedText: analysis.easyText.level3.text,
       originalText: analysis.document.rawText,
       words: [],
-      activities
+      visuals,
+      outputPlan,
+      activities,
     };
   };
 
@@ -218,7 +235,13 @@ export default function App() {
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <OngleHeader />
         <main className="flex-1 overflow-y-auto pb-20">
-          <VisualView onBack={() => setIsVisualView(false)} originalText={result.originalText} easyText={result.easyText} />
+          <VisualView
+            onBack={() => setIsVisualView(false)}
+            originalText={result.originalText}
+            easyText={result.easyText}
+            visuals={result.visuals || []}
+            outputPlan={result.outputPlan}
+          />
         </main>
       </div>
     );
