@@ -18,8 +18,13 @@ router.post('/text', async (req, res) => {
   }
 });
 
+// TODO: OCR 연결 필요 (소연 파트)
+// 연결 방식:
+// 1. req.file 로 이미지/PDF 받기 (multer 미들웨어 필요)
+// 2. ocr 모듈 호출 → { rawText, lines, confidence } 반환
+// 3. rawText 를 analyzeText() 에 넘겨서 기존 파이프라인 실행
 router.post('/image', (_req, res) => {
-  res.status(501).json({ message: '이미지 OCR 파이프라인은 후속 구현 대상입니다.' });
+  res.status(501).json({ message: 'OCR 파이프라인 연결 대기 중입니다. (소연 파트 완성 후 연결 예정)' });
 });
 
 export default router;

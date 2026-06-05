@@ -1,6 +1,6 @@
-import { AnalysisRequest, ImageAnalysisRequest, AnalysisResponse } from '../types/analysis.js';
+import { AnalysisRequest, ImageAnalysisRequest, AnalysisResponse } from '../types/analysis';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:4000';
 
 export async function analyzeText(request: AnalysisRequest): Promise<AnalysisResponse> {
   try {

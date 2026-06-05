@@ -1,8 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
-import dotenv from 'dotenv';
 import documentRouter from './modules/document/document.controller.js';
-
-dotenv.config();
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));

@@ -31,6 +31,7 @@ export interface ActionStep {
 }
 
 export interface VisualPrompt {
+  cardType: string;
   label: string;
   target: string;
   prompt: string;
@@ -58,9 +59,16 @@ export interface AnalyzeTextResponse {
   visuals: VisualPrompt[];
   activityMaterials: ActivityMaterials;
   metadata: Metadata;
+  outputPlan: OutputPlan;
 }
 
 export interface AnalyzeTextRequest {
   text: string;
   title?: string;
+}
+
+export interface OutputPlan {
+  commonBlocks: string[];
+  typeBlocks: string[];
+  optionalBlocks: string[];
 }

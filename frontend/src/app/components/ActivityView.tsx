@@ -220,7 +220,7 @@ export default function ActivityView({ activities, onBack }: ActivityViewProps) 
                                 }`}
                                 style={isSelected ? { borderColor: '#354d3f' } : undefined}
                               >
-                                <p className="text-gray-900">{activity.leftCards[leftIdx]}</p>
+                                <p className="text-gray-900">{activity.leftCards?.[leftIdx]}</p>
                               </button>
                             );
                           })}
@@ -241,7 +241,7 @@ export default function ActivityView({ activities, onBack }: ActivityViewProps) 
                                 }}
                                 className="w-full text-left bg-white rounded-lg p-3 border-2 border-gray-200 hover:border-gray-300 transition-colors"
                               >
-                                <p className="text-gray-900">{activity.rightCards[rightIdx]}</p>
+                                <p className="text-gray-900">{activity.rightCards?.[rightIdx]}</p>
                               </button>
                             );
                           })}

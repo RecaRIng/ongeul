@@ -48,6 +48,18 @@ interface BackendAnalysis {
     matchingCardIdeas: string[];
     coachingGuide: string;
   };
+  visuals: Array<{
+    cardType: string;
+    label: string;
+    target: string;
+    prompt: string;
+    imageUrl: string;
+  }>;
+  outputPlan?: {
+    commonBlocks: string[];
+    typeBlocks: string[];
+    optionalBlocks: string[];
+  };
 }
 
 export default function App() {
@@ -126,6 +138,9 @@ export default function App() {
       });
     }
 
+    const visuals = analysis.visuals || [];
+    const outputPlan = analysis.outputPlan || { commonBlocks: [], typeBlocks: [], optionalBlocks: [] };
+
     return {
       guideSummary: summaryLines.join('\n'),
       easyText: analysis.easyText.level2 || '',
@@ -133,6 +148,8 @@ export default function App() {
       detailedText: analysis.easyText.level3,
       originalText: analysis.document.rawText,
       words: [],
+      visuals,
+      outputPlan,
       activities,
     };
   };
@@ -189,6 +206,8 @@ export default function App() {
             onBack={() => setIsVisualView(false)}
             originalText={result.originalText}
             easyText={result.easyText}
+            visuals={result.visuals || []}
+            outputPlan={result.outputPlan}
           />
         </main>
       </div>

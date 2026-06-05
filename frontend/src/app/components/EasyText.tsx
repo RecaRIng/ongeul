@@ -98,11 +98,13 @@ export default function EasyText({ content, easierContent, detailedContent, word
       // 굵은 글씨 앞부분 처리
       if (boldMatch.index > lastIndex) {
         const normalText = text.substring(lastIndex, boldMatch.index);
-        parts.push(...(Array.isArray(processSegment(normalText, lastIndex)) ? processSegment(normalText, lastIndex) : [processSegment(normalText, lastIndex)]));
+        const normalSeg = processSegment(normalText, lastIndex);
+        parts.push(...(Array.isArray(normalSeg) ? normalSeg : [normalSeg]));
       }
 
       // 굵은 글씨 부분 처리
-      parts.push(...(Array.isArray(processSegment(boldMatch.text, boldMatch.index, true)) ? processSegment(boldMatch.text, boldMatch.index, true) : [processSegment(boldMatch.text, boldMatch.index, true)]));
+      const boldSeg = processSegment(boldMatch.text, boldMatch.index, true);
+      parts.push(...(Array.isArray(boldSeg) ? boldSeg : [boldSeg]));
 
       lastIndex = boldMatch.index + boldMatch.length;
     });
@@ -110,7 +112,8 @@ export default function EasyText({ content, easierContent, detailedContent, word
     // 남은 텍스트 추가
     if (lastIndex < text.length) {
       const normalText = text.substring(lastIndex);
-      parts.push(...(Array.isArray(processSegment(normalText, lastIndex)) ? processSegment(normalText, lastIndex) : [processSegment(normalText, lastIndex)]));
+      const remainingSeg = processSegment(normalText, lastIndex);
+      parts.push(...(Array.isArray(remainingSeg) ? remainingSeg : [remainingSeg]));
     }
 
     return parts.length > 0 ? parts : text;
