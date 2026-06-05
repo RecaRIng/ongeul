@@ -46,8 +46,9 @@ async function generateImage(prompt: string): Promise<string> {
     });
     const b64 = response.data?.[0]?.b64_json;
     return b64 ? `data:image/png;base64,${b64}` : '';
-  } catch (err) {
-    console.error('이미지 생성 실패:', err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('이미지 생성 실패:', message);
     return '';
   }
 }
