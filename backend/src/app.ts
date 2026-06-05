@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from 'express';
 import dotenv from 'dotenv';
+dotenv.config();
 import documentRouter from './modules/document/document.controller';
 import easyTextRouter from './modules/easyText/easyText.controller';
 
