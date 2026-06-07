@@ -13,8 +13,8 @@ export function buildVisualPrompt(coreFields: CoreFields, actionSteps: ActionSte
 - cardType은 아래 중에서만 선택한다:
   date_card | time_card | place_card | material_card | deadline_card | submit_to_card | signature_card | choice_card | step_card | warning_card | result_card
 - 시각 카드가 필요한 항목이 없으면 빈 배열([])을 반환한다.
-- prompt는 반드시 "Simple flat illustration for children's flashcard, clean white background, minimal detail, cartoon style, no text. " 로 시작한다.
-- material_card의 prompt는 예외로 "Single object centered on white background, large and clear, flat cartoon illustration, no humans, no text. " 로 시작하고, 사람 없이 사물 자체를 크고 명확하게 묘사한다.
+- prompt는 반드시 "Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. " 로 시작한다.
+- material_card의 prompt는 예외로 "Single object centered, soft watercolor illustration style, warm colors, gentle shading, clean white background, no humans, no text, children's book illustration style. " 로 시작하고, 사람 없이 사물 자체를 크고 명확하게 묘사한다.
 
 CORE_FIELDS:
 ${JSON.stringify(coreFields, null, 2)}

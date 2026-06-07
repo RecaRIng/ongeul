@@ -3,11 +3,25 @@ import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js
 import { buildVisualPrompt } from './visual.prompt.js';
 import { callLlm } from '../../common/llm.client.js';
 
-const STYLE_PREFIX = 'Simple flat illustration for children\'s flashcard, clean white background, minimal detail, cartoon style, no text. ';
-const MATERIAL_STYLE_PREFIX = 'Single object centered on white background, large and clear, flat cartoon illustration, no humans, no text. ';
+const STYLE_PREFIX = 'Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children\'s book illustration style. ';
+const OLD_STYLE_PREFIX = 'Simple flat illustration for children\'s flashcard, clean white background, minimal detail, cartoon style, no text. ';
+const MATERIAL_STYLE_PREFIX = 'Single object centered, soft watercolor illustration style, warm colors, gentle shading, clean white background, no humans, no text, children\'s book illustration style. ';
+const OLD_MATERIAL_STYLE_PREFIX = 'Single object centered on white background, large and clear, flat cartoon illustration, no humans, no text. ';
 
 function getStylePrefix(cardType: string): string {
   return cardType === 'material_card' ? MATERIAL_STYLE_PREFIX : STYLE_PREFIX;
+}
+
+function stripKnownStylePrefix(cardType: string, prompt: string): string {
+  const prefixes = cardType === 'material_card'
+    ? [MATERIAL_STYLE_PREFIX, OLD_MATERIAL_STYLE_PREFIX]
+    : [STYLE_PREFIX, OLD_STYLE_PREFIX];
+  const matchedPrefix = prefixes.find(prefix => prompt.startsWith(prefix));
+  return matchedPrefix ? prompt.slice(matchedPrefix.length) : prompt;
+}
+
+function withStylePrefix(cardType: string, prompt: string): string {
+  return `${getStylePrefix(cardType)}${stripKnownStylePrefix(cardType, prompt)}`;
 }
 
 let openai: OpenAI | null | undefined;
@@ -35,10 +49,31 @@ function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
   return [...visuals]
     .sort((a, b) => (priority[a.cardType] ?? 99) - (priority[b.cardType] ?? 99))
     .filter(v => {
-      if (seen.has(v.cardType)) return false;
-      seen.add(v.cardType);
+      const key = v.cardType === 'material_card' ? `${v.cardType}:${v.target}` : v.cardType;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
+}
+
+function buildMaterialVisual(material: string, label = '\uC900\uBE44\uBB3C', imageUrl = ''): VisualPrompt {
+  return {
+    cardType: 'material_card',
+    label,
+    target: material,
+    prompt: `${MATERIAL_STYLE_PREFIX}${material}, single object only.`,
+    imageUrl
+  };
+}
+
+function normalizeMaterialCards(visuals: VisualPrompt[], materials: string[]): VisualPrompt[] {
+  if (materials.length === 0) return visuals;
+
+  const materialTemplate = visuals.find(v => v.cardType === 'material_card');
+  return [
+    ...materials.map(material => buildMaterialVisual(material, materialTemplate?.label, materialTemplate?.imageUrl)),
+    ...visuals.filter(v => v.cardType !== 'material_card')
+  ];
 }
 
 async function generateImage(prompt: string): Promise<string> {
@@ -100,12 +135,12 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
             cardType: item.cardType ?? '',
             label: item.label ?? '',
             target: item.target ?? '',
-            prompt: item.prompt ? getStylePrefix(item.cardType ?? '') + item.prompt : '',
+            prompt: item.prompt ? withStylePrefix(item.cardType ?? '', item.prompt) : '',
             imageUrl: item.imageUrl ?? ''
           }))
           .filter(v => v.cardType !== '')
       );
-      return enrichWithImages(visuals);
+      return enrichWithImages(normalizeMaterialCards(visuals, coreFields.materials));
     }
   } catch (err) {
     console.error('visual LLM 호출 또는 JSON 파싱 실패:', err);
@@ -115,13 +150,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
   const visuals: VisualPrompt[] = [];
 
   if (coreFields.materials.length > 0) {
-    visuals.push({
-      cardType: 'material_card',
-      label: '준비물',
-      target: coreFields.materials.join(', '),
-      prompt: `${MATERIAL_STYLE_PREFIX}${coreFields.materials.join(', ')} 각각 단독 클로즈업, 흰 배경, 플래시카드 스타일`,
-      imageUrl: ''
-    });
+    visuals.push(...coreFields.materials.map(material => buildMaterialVisual(material)));
   }
 
   if (coreFields.place) {
