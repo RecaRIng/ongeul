@@ -1,8 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import documentRouter from './modules/document/document.controller.js';
 
 const app = express();
+app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
 app.use('/api/analyze', documentRouter);

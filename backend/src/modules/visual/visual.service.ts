@@ -3,6 +3,13 @@ import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js
 import { buildVisualPrompt } from './visual.prompt.js';
 import { callLlm } from '../../common/llm.client.js';
 
+const STYLE_PREFIX = 'Simple flat illustration for children\'s flashcard, clean white background, minimal detail, cartoon style, no text. ';
+const MATERIAL_STYLE_PREFIX = 'Single object centered on white background, large and clear, flat cartoon illustration, no humans, no text. ';
+
+function getStylePrefix(cardType: string): string {
+  return cardType === 'material_card' ? MATERIAL_STYLE_PREFIX : STYLE_PREFIX;
+}
+
 let openai: OpenAI | null | undefined;
 function getOpenAIClient(): OpenAI | null {
   if (openai === undefined) {
@@ -36,7 +43,11 @@ function postProcessVisuals(visuals: VisualPrompt[]): VisualPrompt[] {
 
 async function generateImage(prompt: string): Promise<string> {
   const client = getOpenAIClient();
-  if (!client || !prompt) return '';
+  if (!client || !prompt) {
+    console.log('이미지 생성 스킵:', !client ? 'OpenAI 클라이언트 없음 (API 키 확인 필요)' : '프롬프트 없음');
+    return '';
+  }
+  console.log('[generateImage] 시작, 프롬프트 길이:', prompt.length);
   try {
     const response = await client.images.generate({
       model: 'gpt-image-1',
@@ -45,10 +56,11 @@ async function generateImage(prompt: string): Promise<string> {
       quality: 'low',
     });
     const b64 = response.data?.[0]?.b64_json;
+    console.log('[generateImage] 응답 수신, b64 있음:', !!b64);
     return b64 ? `data:image/png;base64,${b64}` : '';
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('이미지 생성 실패:', message);
+    console.error('[generateImage] 실패:', message);
     return '';
   }
 }
@@ -62,10 +74,15 @@ async function withTimeout(promise: Promise<string>, ms: number): Promise<string
 }
 
 async function enrichWithImages(visuals: VisualPrompt[]): Promise<VisualPrompt[]> {
+  console.log('[enrichWithImages] 이미지 생성 시작, 카드 수:', visuals.length);
   return Promise.all(
     visuals.map(async (v) => ({
       ...v,
-      imageUrl: await withTimeout(generateImage(v.prompt), 10000).catch(() => ''),
+      imageUrl: await withTimeout(generateImage(v.prompt), 60000).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[enrichWithImages] 이미지 생성 실패 (cardType:', v.cardType, '):', message);
+        return '';
+      }),
     }))
   );
 }
@@ -83,7 +100,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
             cardType: item.cardType ?? '',
             label: item.label ?? '',
             target: item.target ?? '',
-            prompt: item.prompt ?? '',
+            prompt: item.prompt ? getStylePrefix(item.cardType ?? '') + item.prompt : '',
             imageUrl: item.imageUrl ?? ''
           }))
           .filter(v => v.cardType !== '')
@@ -102,7 +119,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'material_card',
       label: '준비물',
       target: coreFields.materials.join(', '),
-      prompt: `학생이 ${coreFields.materials.join('와/과 ')}을 준비하는 장면을 보여주는 이미지`,
+      prompt: `${MATERIAL_STYLE_PREFIX}${coreFields.materials.join(', ')} 각각 단독 클로즈업, 흰 배경, 플래시카드 스타일`,
       imageUrl: ''
     });
   }
@@ -112,7 +129,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'place_card',
       label: '장소',
       target: coreFields.place,
-      prompt: `${coreFields.place}에서 활동하는 학생 모습을 보여주는 이미지`,
+      prompt: `${STYLE_PREFIX}${coreFields.place}에서 활동하는 학생 모습을 보여주는 이미지`,
       imageUrl: ''
     });
   }
@@ -122,7 +139,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'time_card',
       label: '시간',
       target: coreFields.time,
-      prompt: `${coreFields.time}를 나타내는 시계 또는 시간 이미지`,
+      prompt: `${STYLE_PREFIX}${coreFields.time}를 나타내는 시계 또는 시간 이미지`,
       imageUrl: ''
     });
   }
@@ -132,7 +149,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'date_card',
       label: '날짜',
       target: coreFields.date,
-      prompt: `${coreFields.date}를 나타내는 달력 또는 날짜 이미지`,
+      prompt: `${STYLE_PREFIX}${coreFields.date}를 나타내는 달력 또는 날짜 이미지`,
       imageUrl: ''
     });
   }
@@ -142,7 +159,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'deadline_card',
       label: '마감일',
       target: coreFields.deadline,
-      prompt: `${coreFields.deadline} 마감일을 나타내는 이미지`,
+      prompt: `${STYLE_PREFIX}${coreFields.deadline} 마감일을 나타내는 이미지`,
       imageUrl: ''
     });
   }
@@ -152,7 +169,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'warning_card',
       label: '주의사항',
       target: coreFields.warnings.join(', '),
-      prompt: `${coreFields.warnings.join('와/과 ')} 주의사항을 나타내는 이미지`,
+      prompt: `${STYLE_PREFIX}${coreFields.warnings.join('와/과 ')} 주의사항을 나타내는 이미지`,
       imageUrl: ''
     });
   }
@@ -162,7 +179,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'submit_to_card',
       label: '제출 대상',
       target: coreFields.submissionTarget,
-      prompt: `${coreFields.submissionTarget}에게 제출하는 장면을 보여주는 이미지`,
+      prompt: `${STYLE_PREFIX}${coreFields.submissionTarget}에게 제출하는 장면을 보여주는 이미지`,
       imageUrl: ''
     });
   }
@@ -172,7 +189,7 @@ export async function generateVisualPrompts(coreFields: CoreFields, actionSteps:
       cardType: 'step_card',
       label: '행동',
       target: actionSteps[0].action,
-      prompt: `${actionSteps[0].action} 장면을 보여주는 이미지`,
+      prompt: `${STYLE_PREFIX}${actionSteps[0].action} 장면을 보여주는 이미지`,
       imageUrl: ''
     });
   }

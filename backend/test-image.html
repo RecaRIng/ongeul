@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>이미지 생성 테스트</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f3f4f6;
+      padding: 32px 20px;
+      color: #111;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 22px;
+      font-size: 0.95rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+
+    #status {
+      font-size: 0.88rem;
+      color: #6b7280;
+    }
+
+    #error {
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #fee2e2;
+      color: #b91c1c;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-type {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .card-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #111;
+    }
+
+    .card-target {
+      font-size: 0.85rem;
+      color: #374151;
+    }
+
+    .card-image {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      object-fit: cover;
+      margin-top: 4px;
+    }
+
+    .no-image {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #f3f4f6;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    details {
+      margin-top: 32px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #6b7280;
+      user-select: none;
+      margin-bottom: 8px;
+    }
+
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 10px;
+      font-size: 0.76rem;
+      overflow: auto;
+      max-height: 400px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>이미지 생성 테스트 — localhost:4000</h1>
+
+  <div class="controls">
+    <button id="btn" onclick="runTest()">테스트 요청 보내기</button>
+    <span id="status"></span>
+  </div>
+
+  <div id="error"></div>
+  <div class="grid" id="grid"></div>
+
+  <details id="raw" style="display:none">
+    <summary>전체 응답 JSON 보기</summary>
+    <pre id="json"></pre>
+  </details>
+
+  <script>
+    const TEST_TEXT = "현장학습 안내문\n날짜: 5월 20일\n장소: 서울 동물원\n준비물: 도시락, 물병\n제출처: 담임 선생님";
+
+    async function runTest() {
+      const btn = document.getElementById('btn');
+      const status = document.getElementById('status');
+      const error = document.getElementById('error');
+      const grid = document.getElementById('grid');
+      const raw = document.getElementById('raw');
+      const jsonEl = document.getElementById('json');
+
+      btn.disabled = true;
+      error.style.display = 'none';
+      error.textContent = '';
+      grid.innerHTML = '';
+      raw.style.display = 'none';
+      status.textContent = '요청 중… (이미지 생성은 30~60초 소요)';
+
+      const start = Date.now();
+
+      try {
+        const res = await fetch('http://localhost:4000/api/analyze/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: TEST_TEXT }),
+        });
+
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        }
+
+        const data = await res.json();
+        status.textContent = `완료 (${elapsed}초)`;
+
+        const visuals = data.visuals ?? [];
+
+        if (visuals.length === 0) {
+          status.textContent += ' — visuals 없음';
+        } else {
+          visuals.forEach(v => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+              <div class="card-type">${escape(v.cardType ?? '')}</div>
+              <div class="card-label">${escape(v.label ?? '')}</div>
+              <div class="card-target">${escape(v.target ?? '')}</div>
+              ${v.imageUrl
+                ? `<img class="card-image" src="${v.imageUrl}" alt="${escape(v.label ?? '')}">`
+                : `<div class="no-image">이미지 없음</div>`}
+            `;
+            grid.appendChild(card);
+          });
+        }
+
+        jsonEl.textContent = JSON.stringify(data, null, 2);
+        raw.style.display = 'block';
+
+      } catch (err) {
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        status.textContent = `실패 (${elapsed}초)`;
+        error.textContent = err instanceof Error ? err.message : String(err);
+        error.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function escape(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>

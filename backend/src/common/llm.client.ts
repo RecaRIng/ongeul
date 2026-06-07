@@ -1,7 +1,7 @@
 import type { CoreFields, DocumentType } from './types.js';
 
 function extractBlock(prompt: string, label: string): string | null {
-  const pattern = new RegExp(`${label}:\n([\s\S]*?)(?:\n[A-Z_]+:|$)`, 'i');
+  const pattern = new RegExp(`${label}:\n([\\s\\S]*?)(?:\n[A-Z_]+:|$)`, 'i');
   const match = prompt.match(pattern);
   return match?.[1]?.trim() ?? null;
 }
@@ -64,8 +64,11 @@ function findTime(rawText: string): string {
 }
 
 function findPlace(rawText: string): string {
+  // normalizeText가 \n을 공백으로 치환하므로 장소 키워드는 rawText에서 직접 추출
+  const direct = rawText.match(/장소[:：]?\s*([^\n,;.]+)/);
+  if (direct?.[1]) return direct[1].trim();
+
   return findPattern(rawText, [
-    /장소[:：]?\s*([^.,;\n]+)/,
     /(학교 도서관|도서관|강당|체육관|교실|학교)/,
     /([^,\.]+?)에서/,
     /([^,\.]+?)로/,
@@ -240,10 +243,11 @@ function mockLlmResponse(prompt: string): string {
     const actions = Array.isArray(coreFields?.actions) ? (coreFields.actions as string[]) : [];
     const materials = Array.isArray(coreFields?.materials) ? (coreFields.materials as string[]) : [];
     const place = String(coreFields?.place || '');
-    const visuals: Array<{ label: string; target: string; prompt: string; imageUrl: string }> = [];
+    const visuals: Array<{ cardType: string; label: string; target: string; prompt: string; imageUrl: string }> = [];
 
     if (materials.length > 0) {
       visuals.push({
+        cardType: 'material_card',
         label: '준비물',
         target: materials.join(', '),
         prompt: `학생이 ${materials.join('와/과 ')}을 준비하는 장면을 보여주는 이미지`,
@@ -253,6 +257,7 @@ function mockLlmResponse(prompt: string): string {
 
     if (place) {
       visuals.push({
+        cardType: 'place_card',
         label: '장소',
         target: place,
         prompt: `${place}에서 활동하는 학생 모습을 보여주는 이미지`,
@@ -262,6 +267,7 @@ function mockLlmResponse(prompt: string): string {
 
     if (visuals.length === 0 && actions.length > 0) {
       visuals.push({
+        cardType: 'step_card',
         label: '행동',
         target: actions[0],
         prompt: `${actions[0]} 장면을 보여주는 이미지`,
