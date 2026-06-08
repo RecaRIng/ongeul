@@ -245,22 +245,58 @@ function mockLlmResponse(prompt: string): string {
     const place = String(coreFields?.place || '');
     const visuals: Array<{ cardType: string; label: string; target: string; prompt: string; imageUrl: string }> = [];
 
-    if (materials.length > 0) {
+    const MATERIAL_PREFIX = 'Soft watercolor illustration style, natural colors appropriate to the object, gentle shading, clean white background, no humans, no text, no letters, no signs, no writing, children\'s book illustration style. ';
+    const MATERIAL_PROMPT_MAP: Record<string, string> = {
+      '간편복': 'comfortable everyday outfit for Korean elementary school student aged 7-13, t-shirt and shorts or pants, laid flat on white background, watercolor illustration',
+      '운동화': "children's sneakers, side view, white background",
+      '점심도시락': 'Korean lunch bento box with rice and side dishes, open lid, white background',
+      '물': 'water bottle for kids, white background',
+      '간식': 'multiple colorful snack packages, potato chip bag, juice box, and candy scattered together on white background, various colors, top-down view',
+      '돗자리': 'folded picnic mat, top view, white background',
+      '비닐봉지': 'plastic bag, white background',
+    };
+
+    for (const material of materials) {
+      const englishDesc = MATERIAL_PROMPT_MAP[material];
+      const materialPrompt = englishDesc
+        ? `${MATERIAL_PREFIX}${englishDesc}`
+        : `${MATERIAL_PREFIX}${material}, 초등학생 현장체험학습 준비물, centered object`;
       visuals.push({
         cardType: 'material_card',
-        label: '준비물',
-        target: materials.join(', '),
-        prompt: `학생이 ${materials.join('와/과 ')}을 준비하는 장면을 보여주는 이미지`,
+        label: material,
+        target: material,
+        prompt: materialPrompt,
         imageUrl: ''
       });
     }
 
     if (place) {
+      const PLACE_PREFIX = 'Soft watercolor illustration style, natural colors appropriate to the object, gentle shading, clean white background, no text, no letters, no signs, no writing, children\'s book illustration style. ';
+      const PLACE_VISUAL_MAP: Array<{ pattern: RegExp; desc: string }> = [
+        { pattern: /떡/,           desc: 'Korean traditional tteok rice cake display in museum interior, wooden shelves, traditional Korean atmosphere' },
+        { pattern: /박물관/,        desc: 'museum interior with display cases and traditional exhibits, bright lighting' },
+        { pattern: /아동극장|어린이극장/, desc: "children's theater stage with red curtains, warm lighting, and audience seats" },
+        { pattern: /극장|공연/,     desc: 'theater stage with red curtains and warm stage lighting, rows of seats' },
+        { pattern: /공원/,          desc: 'Korean park with green trees, wooden benches, and open grass field, sunny day' },
+        { pattern: /체험관|체험/,    desc: "children's hands-on experience center with interactive exhibits and displays" },
+        { pattern: /도서관/,        desc: 'library interior with tall bookshelves and reading tables, quiet atmosphere' },
+        { pattern: /미술관|갤러리/,  desc: 'art gallery with paintings on white walls, clean spacious interior' },
+        { pattern: /과학관/,        desc: 'science museum with interactive displays and educational exhibits' },
+        { pattern: /동물원/,        desc: 'zoo exterior with tropical plants and animal enclosures' },
+        { pattern: /수족관/,        desc: 'aquarium interior with large fish tanks and colorful tropical fish' },
+        { pattern: /체육관/,        desc: 'gymnasium with wooden floor and sports equipment' },
+        { pattern: /운동장/,        desc: 'school playground with exercise equipment and open area' },
+        { pattern: /학교/,          desc: 'Korean elementary school building exterior with playground' },
+        { pattern: /강|하천/,       desc: 'Korean riverside park with walking path and flowing water, green trees' },
+        { pattern: /산|숲/,         desc: 'Korean mountain trail with green trees and nature path' },
+      ];
+      const matched = PLACE_VISUAL_MAP.find(({ pattern }) => pattern.test(place));
+      const placeDesc = matched?.desc ?? 'Korean outdoor public space with trees and open area, clear sky';
       visuals.push({
         cardType: 'place_card',
         label: '장소',
         target: place,
-        prompt: `${place}에서 활동하는 학생 모습을 보여주는 이미지`,
+        prompt: `${PLACE_PREFIX}${placeDesc}`,
         imageUrl: ''
       });
     }
@@ -270,7 +306,7 @@ function mockLlmResponse(prompt: string): string {
         cardType: 'step_card',
         label: '행동',
         target: actions[0],
-        prompt: `${actions[0]} 장면을 보여주는 이미지`,
+        prompt: `Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. ${actions[0]} 장면을 보여주는 이미지`,
         imageUrl: ''
       });
     }

@@ -3,9 +3,9 @@ import type { ActionStep, CoreFields, VisualPrompt } from '../../common/types.js
 import { buildVisualPrompt } from './visual.prompt.js';
 import { callLlm } from '../../common/llm.client.js';
 
-const STYLE_PREFIX = 'Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children\'s book illustration style. ';
+const STYLE_PREFIX = 'Soft watercolor illustration style, natural colors appropriate to the object, gentle shading, clean white background, no text, no letters, no signs, no writing, children\'s book illustration style. ';
 const OLD_STYLE_PREFIX = 'Simple flat illustration for children\'s flashcard, clean white background, minimal detail, cartoon style, no text. ';
-const MATERIAL_STYLE_PREFIX = 'Single object centered, soft watercolor illustration style, warm colors, gentle shading, clean white background, no humans, no text, children\'s book illustration style. ';
+const MATERIAL_STYLE_PREFIX = 'Single object centered, soft watercolor illustration style, natural colors appropriate to the object, gentle shading, clean white background, no humans, no text, no letters, no signs, no writing, children\'s book illustration style. ';
 const OLD_MATERIAL_STYLE_PREFIX = 'Single object centered on white background, large and clear, flat cartoon illustration, no humans, no text. ';
 
 function getStylePrefix(cardType: string): string {
@@ -69,11 +69,25 @@ function buildMaterialVisual(material: string, label = '\uC900\uBE44\uBB3C', ima
 function normalizeMaterialCards(visuals: VisualPrompt[], materials: string[]): VisualPrompt[] {
   if (materials.length === 0) return visuals;
 
-  const materialTemplate = visuals.find(v => v.cardType === 'material_card');
   return [
-    ...materials.map(material => buildMaterialVisual(material, materialTemplate?.label, materialTemplate?.imageUrl)),
+    ...materials.map(material => {
+      const existing = visuals.find(v => v.cardType === 'material_card' && v.target === material);
+      return existing ?? buildMaterialVisual(material);
+    }),
     ...visuals.filter(v => v.cardType !== 'material_card')
   ];
+}
+
+async function generateImageOnce(client: OpenAI, prompt: string): Promise<string> {
+  const response = await client.images.generate({
+    model: 'gpt-image-1',
+    prompt,
+    size: '1024x1024',
+    quality: 'low',
+  });
+  const b64 = response.data?.[0]?.b64_json;
+  console.log('[generateImage] 응답 수신, b64 있음:', !!b64);
+  return b64 ? `data:image/png;base64,${b64}` : '';
 }
 
 async function generateImage(prompt: string): Promise<string> {
@@ -84,19 +98,18 @@ async function generateImage(prompt: string): Promise<string> {
   }
   console.log('[generateImage] 시작, 프롬프트 길이:', prompt.length);
   try {
-    const response = await client.images.generate({
-      model: 'gpt-image-1',
-      prompt,
-      size: '1024x1024',
-      quality: 'low',
-    });
-    const b64 = response.data?.[0]?.b64_json;
-    console.log('[generateImage] 응답 수신, b64 있음:', !!b64);
-    return b64 ? `data:image/png;base64,${b64}` : '';
+    return await generateImageOnce(client, prompt);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[generateImage] 실패:', message);
-    return '';
+    console.warn('[generateImage] 1차 실패, 3초 후 재시도:', message);
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    try {
+      return await generateImageOnce(client, prompt);
+    } catch (retryErr: unknown) {
+      const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+      console.error('[generateImage] 재시도 실패:', retryMessage);
+      return '';
+    }
   }
 }
 

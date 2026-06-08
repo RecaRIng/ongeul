@@ -179,8 +179,8 @@
     <textarea id="docText">현장학습 안내문
 1학년 2학기 현장체험학습 안내
 일시: 2025년 10월 24일 금요일 08:40~14:30
-장소: 한형석자유아동극장 및 사상근린공원
-준비물: 간편복, 운동화, 점심도시락, 간식, 1인용 돗자리, 비닐봉지
+장소: 떡박물관 및 근린공원
+준비물: 간편복, 운동화, 간식, 1인용 돗자리
 제출: 10월 1일까지
 제출처: 담임선생님</textarea>
   </div>
@@ -243,15 +243,28 @@
         if (visuals.length === 0) {
           status.textContent += ' — visuals 없음';
         } else {
+          const CARD_TYPE_KO = {
+            material_card: '준비물',
+            place_card: '장소',
+            date_card: '날짜',
+            time_card: '시간',
+            deadline_card: '마감일',
+            submit_to_card: '제출처',
+            warning_card: '주의사항',
+            step_card: '행동',
+            choice_card: '선택',
+            signature_card: '서명',
+            result_card: '결과',
+          };
+
           visuals.forEach(v => {
             const card = document.createElement('div');
             card.className = 'card';
             card.innerHTML = `
-              <div class="card-type">${escape(v.cardType ?? '')}</div>
-              <div class="card-label">${escape(v.label ?? '')}</div>
-              <div class="card-target">${escape(v.target ?? '')}</div>
+              <div class="card-type">${escape(CARD_TYPE_KO[v.cardType] ?? v.cardType)}</div>
+              <div class="card-label">${escape(v.target ?? '')}</div>
               ${v.imageUrl
-                ? `<img class="card-image" src="${v.imageUrl}" alt="${escape(v.label ?? '')}">`
+                ? `<img class="card-image" src="${v.imageUrl}" alt="${escape(v.target ?? '')}">`
                 : `<div class="no-image">이미지 없음</div>`}
             `;
             grid.appendChild(card);
