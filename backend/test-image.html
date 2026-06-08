@@ -115,6 +115,38 @@
       margin-top: 4px;
     }
 
+    .input-section {
+      margin-bottom: 20px;
+    }
+
+    .input-section label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    #docText {
+      width: 100%;
+      min-height: 140px;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      font-family: inherit;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      resize: vertical;
+      line-height: 1.6;
+      color: #111;
+      background: white;
+      outline: none;
+    }
+
+    #docText:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+
     details {
       margin-top: 32px;
     }
@@ -142,6 +174,17 @@
 <body>
   <h1>이미지 생성 테스트 — localhost:4000</h1>
 
+  <div class="input-section">
+    <label for="docText">테스트할 문서 내용</label>
+    <textarea id="docText">현장학습 안내문
+1학년 2학기 현장체험학습 안내
+일시: 2025년 10월 24일 금요일 08:40~14:30
+장소: 한형석자유아동극장 및 사상근린공원
+준비물: 간편복, 운동화, 점심도시락, 간식, 1인용 돗자리, 비닐봉지
+제출: 10월 1일까지
+제출처: 담임선생님</textarea>
+  </div>
+
   <div class="controls">
     <button id="btn" onclick="runTest()">테스트 요청 보내기</button>
     <span id="status"></span>
@@ -156,8 +199,6 @@
   </details>
 
   <script>
-    const TEST_TEXT = "현장학습 안내문\n날짜: 5월 20일\n장소: 서울 동물원\n준비물: 도시락, 물병\n제출처: 담임 선생님";
-
     async function runTest() {
       const btn = document.getElementById('btn');
       const status = document.getElementById('status');
@@ -165,6 +206,12 @@
       const grid = document.getElementById('grid');
       const raw = document.getElementById('raw');
       const jsonEl = document.getElementById('json');
+      const text = document.getElementById('docText').value.trim();
+
+      if (!text) {
+        alert('문서 내용을 입력해주세요.');
+        return;
+      }
 
       btn.disabled = true;
       error.style.display = 'none';
@@ -179,7 +226,7 @@
         const res = await fetch('http://localhost:4000/api/analyze/text', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: TEST_TEXT }),
+          body: JSON.stringify({ text }),
         });
 
         const elapsed = ((Date.now() - start) / 1000).toFixed(1);
