@@ -352,6 +352,7 @@ export default function App() {
             originalText={result.originalText}
             easyText={result.easyText}
             visuals={result.visuals || []}
+            actionSteps={result.actionSteps || []}
             outputPlan={result.outputPlan}
           />
         </main>

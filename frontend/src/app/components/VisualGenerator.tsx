@@ -12,10 +12,18 @@ interface VisualCard {
   imageUrl: string;
 }
 
+interface ActionStep {
+  step: number;
+  action: string;
+  reason: string;
+  visualTarget: string;
+}
+
 interface VisualGeneratorProps {
   originalText?: string;
   easyText?: string;
   visuals?: VisualCard[];
+  actionSteps?: ActionStep[];
 }
 
 interface GeneratedItem {
@@ -66,6 +74,13 @@ const ALL_TYPES: { type: ImageType; title: string; short: string; detail: string
     detail: '아이가 처음 보는 단어나 추상적인 말을 이해할 수 있게 돕는 카드예요.',
   },
 ];
+
+const TYPE_TO_CARD_TYPE: Record<ImageType, string> = {
+  supplies: 'material_card',
+  activity: 'place_card',
+  sequence: 'step_card',
+  word: 'warning_card',
+};
 
 const CARD_TYPE_LABELS: Record<string, string> = {
   date_card: '날짜',
@@ -135,7 +150,7 @@ function downloadImage(imageUrl: string | undefined, index: number) {
   document.body.removeChild(link);
 }
 
-export default function VisualGenerator({ originalText = '', easyText = '', visuals = [] }: VisualGeneratorProps) {
+export default function VisualGenerator({ originalText = '', easyText = '', visuals = [], actionSteps = [] }: VisualGeneratorProps) {
   const [selected, setSelected] = useState<Set<ImageType>>(new Set());
   const [openInfo, setOpenInfo] = useState<ImageType | null>(null);
   const [generated, setGenerated] = useState<GeneratedItem[]>([]);
@@ -143,6 +158,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
   const [pendingChoice, setPendingChoice] = useState<Record<string, PendingChoice>>({});
   const [notice, setNotice] = useState('');
   const [regeneratingIds, setRegeneratingIds] = useState<Set<number>>(new Set());
+  const [confirmingTypes, setConfirmingTypes] = useState<Set<ImageType>>(new Set());
 
   const recommendations = buildRecommendations(visuals);
   const generatedKeys = new Set(generated.map((item) => (item.visual ? `${item.visual.cardType}:${item.visual.target}` : `manual:${item.type}`)));
@@ -189,28 +205,94 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
     setSelected(new Set());
   };
 
-  const confirmPending = (type: ImageType) => {
+  const confirmPending = async (type: ImageType) => {
     const meta = ALL_TYPES.find((item) => item.type === type);
     if (!meta) return;
 
-    const choice = pendingChoice[type];
-    const source =
-      choice?.mode === 'original'
-        ? choice.portion || originalText
-        : choice?.mode === 'custom'
-          ? choice.custom
-          : choice?.portion || easyText;
+    setConfirmingTypes((prev) => new Set(prev).add(type));
+    setNotice('');
 
-    if (!source.trim()) return;
+    try {
+      if (type === 'sequence' && actionSteps.length > 0) {
+        const results = await Promise.allSettled(
+          actionSteps.map(async (step) => {
+            const stepPrompt = `Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. SCENE: ${step.action}`;
+            const response = await fetch('/api/visual/regenerate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: stepPrompt, cardType: 'step_card' }),
+            });
+            const data = (await response.json()) as { imageUrl?: string; error?: string };
+            if (!response.ok || !data.imageUrl) throw new Error(data.error || '이미지를 만들지 못했어요.');
+            return { step, imageUrl: data.imageUrl, stepPrompt };
+          }),
+        );
 
-    appendItems([{ type, title: meta.title, description: meta.short, source }]);
-    setPending((prev) => prev.filter((item) => item !== type));
-    setPendingChoice((prev) => {
-      const next = { ...prev };
-      delete next[type];
-      return next;
-    });
-    setNotice('직접 선택한 시각자료 틀을 만들었어요. 세부 생성 기능은 다음 단계에서 연결할 수 있어요.');
+        const items: Omit<GeneratedItem, 'id'>[] = results.map((result, i) => {
+          const step = actionSteps[i];
+          if (result.status === 'fulfilled') {
+            const visual: VisualCard = {
+              cardType: 'step_card',
+              label: `${step.step}단계`,
+              target: step.action,
+              prompt: result.value.stepPrompt,
+              imageUrl: result.value.imageUrl,
+            };
+            return { type, title: `${step.step}. ${step.action}`, description: step.reason || meta.short, visual };
+          }
+          return { type, title: `${step.step}. ${step.action}`, description: meta.short };
+        });
+
+        appendItems(items);
+
+        const failCount = results.filter((r) => r.status === 'rejected').length;
+        if (failCount > 0) {
+          setNotice(`${results.length}단계 중 ${failCount}개 이미지 생성에 실패했어요.`);
+        }
+      } else {
+        const choice = pendingChoice[type];
+        const source =
+          choice?.mode === 'original'
+            ? choice.portion || originalText
+            : choice?.mode === 'custom'
+              ? choice.custom
+              : choice?.portion || easyText;
+
+        if (!source.trim()) return;
+
+        const cardType = TYPE_TO_CARD_TYPE[type];
+        const prompt = `Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. ${source.trim()}`;
+
+        const response = await fetch('/api/visual/regenerate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, cardType }),
+        });
+        const data = (await response.json()) as { imageUrl?: string; error?: string };
+
+        if (!response.ok || !data.imageUrl) {
+          throw new Error(data.error || '이미지를 만들지 못했어요.');
+        }
+
+        const visual: VisualCard = { cardType, label: meta.title, target: source.trim(), prompt, imageUrl: data.imageUrl };
+        appendItems([{ type, title: meta.title, description: meta.short, source, visual }]);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setNotice(`이미지 생성 실패: ${message}`);
+    } finally {
+      setConfirmingTypes((prev) => {
+        const next = new Set(prev);
+        next.delete(type);
+        return next;
+      });
+      setPending((prev) => prev.filter((item) => item !== type));
+      setPendingChoice((prev) => {
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
+    }
   };
 
   const setChoiceMode = (type: ImageType, mode: SourceMode) => {
@@ -429,6 +511,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
 
               const choice = pendingChoice[type] || { mode: 'easy', custom: '' };
               const isValid =
+                (type === 'sequence' && actionSteps.length > 0) ||
                 (choice.mode === 'original' && Boolean((choice.portion || originalText).trim())) ||
                 (choice.mode === 'easy' && Boolean((choice.portion || easyText).trim())) ||
                 (choice.mode === 'custom' && Boolean(choice.custom.trim()));
@@ -488,12 +571,12 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
                     <button
                       type="button"
                       onClick={() => confirmPending(type)}
-                      disabled={!isValid}
-                      className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!isValid || confirmingTypes.has(type)}
+                      className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-white transition-colors disabled:cursor-wait disabled:opacity-50"
                       style={{ backgroundColor: '#354d3f' }}
                     >
-                      <Wand2 className="h-4 w-4" />
-                      이미지 만들기
+                      <Wand2 className={`h-4 w-4 ${confirmingTypes.has(type) ? 'animate-spin' : ''}`} />
+                      {confirmingTypes.has(type) ? '이미지 생성 중...' : '이미지 만들기'}
                     </button>
                   </div>
                 </div>

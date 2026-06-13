@@ -9,6 +9,13 @@ interface VisualCard {
   imageUrl: string;
 }
 
+interface ActionStep {
+  step: number;
+  action: string;
+  reason: string;
+  visualTarget: string;
+}
+
 interface OutputPlan {
   commonBlocks: string[];
   typeBlocks: string[];
@@ -20,10 +27,11 @@ interface VisualViewProps {
   originalText?: string;
   easyText?: string;
   visuals?: VisualCard[];
+  actionSteps?: ActionStep[];
   outputPlan?: OutputPlan;
 }
 
-export default function VisualView({ onBack, originalText, easyText, visuals, outputPlan }: VisualViewProps) {
+export default function VisualView({ onBack, originalText, easyText, visuals, actionSteps, outputPlan }: VisualViewProps) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       <button
@@ -33,7 +41,7 @@ export default function VisualView({ onBack, originalText, easyText, visuals, ou
         <ArrowLeft className="w-4 h-4" />
         결과로 돌아가기
       </button>
-      <VisualGenerator originalText={originalText} easyText={easyText} visuals={visuals} />
+      <VisualGenerator originalText={originalText} easyText={easyText} visuals={visuals} actionSteps={actionSteps} />
     </div>
   );
 }

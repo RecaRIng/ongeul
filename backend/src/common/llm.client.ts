@@ -266,6 +266,7 @@ function mockLlmResponse(prompt: string): string {
     const coreFields = parseJsonBlock(prompt, 'CORE_FIELDS') as Record<string, unknown> | null;
     const actions = Array.isArray(coreFields?.actions) ? (coreFields.actions as string[]) : [];
     const materials = Array.isArray(coreFields?.materials) ? (coreFields.materials as string[]) : [];
+    const warnings = Array.isArray(coreFields?.warnings) ? (coreFields.warnings as string[]) : [];
     const place = String(coreFields?.place || '');
     const deadline = String(coreFields?.deadline || '');
     const visuals: Array<{ cardType: string; label: string; target: string; prompt: string; imageUrl: string }> = [];
@@ -280,6 +281,12 @@ function mockLlmResponse(prompt: string): string {
 
     if (deadline) {
       visuals.push({ cardType: 'deadline_card', label: '마감일', target: deadline, prompt: promptForObjectTarget(deadline), imageUrl: '' });
+    }
+
+    for (const warning of warnings) {
+      if (warning.length <= 20) {
+        visuals.push({ cardType: 'warning_card', label: '주의사항', target: warning, prompt: promptForObjectTarget(warning), imageUrl: '' });
+      }
     }
 
     if (visuals.length === 0 && actions.length > 0) {
