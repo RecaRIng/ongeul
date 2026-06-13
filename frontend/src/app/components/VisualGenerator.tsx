@@ -1,35 +1,8 @@
 import { useState } from 'react';
-import { Sparkles, Image as ImageIcon, Info, Wand2, Copy, Download, RefreshCw } from 'lucide-react';
-import imgLunchbox from '../../imports/image.png';
-import imgWater from '../../imports/image-10.png';
-import imgShoes from '../../imports/image-11.png';
-import imgSeq1 from '../../imports/image-14.png';
-import imgSeq2 from '../../imports/image-12.png';
-import imgSeq3 from '../../imports/image-13.png';
-import imgSeq4 from '../../imports/image-15.png';
+import { Copy, Download, Image as ImageIcon, Info, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 
 type ImageType = 'supplies' | 'activity' | 'sequence' | 'word';
-
-const SUPPLIES_ITEMS = [
-  { src: imgLunchbox, label: '도시락' },
-  { src: imgWater, label: '물' },
-  { src: imgShoes, label: '운동화' },
-];
-
-const SEQUENCE_STEPS = [
-  { src: imgSeq2, label: '참가 신청서 작성하기' },
-  { src: imgSeq3, label: '담임선생님께 신청서 제출하기' },
-  { src: imgSeq4, label: '체험학습 날 준비물 챙기기' },
-  { src: imgSeq1, label: '학교 교문 앞에 모이기' },
-];
-
-interface GeneratedItem {
-  id: number;
-  type: ImageType;
-  title: string;
-  description: string;
-  source?: string;
-}
+type SourceMode = 'original' | 'easy' | 'custom';
 
 interface VisualCard {
   cardType: string;
@@ -45,10 +18,26 @@ interface VisualGeneratorProps {
   visuals?: VisualCard[];
 }
 
+interface GeneratedItem {
+  id: number;
+  type: ImageType;
+  title: string;
+  description: string;
+  source?: string;
+  visual?: VisualCard;
+}
+
 interface Recommendation {
   type: ImageType;
   title: string;
   description: string;
+  visual?: VisualCard;
+}
+
+interface PendingChoice {
+  mode: SourceMode;
+  custom: string;
+  portion?: string;
 }
 
 const ALL_TYPES: { type: ImageType; title: string; short: string; detail: string }[] = [
@@ -56,79 +45,127 @@ const ALL_TYPES: { type: ImageType; title: string; short: string; detail: string
     type: 'supplies',
     title: '준비물 이미지',
     short: '챙겨야 할 물건을 그림으로 정리해요.',
-    detail:
-      '문서에 등장하는 준비물을 한눈에 보기 쉬운 일러스트로 정리해요.',
+    detail: '문서에 나온 준비물을 아이가 바로 확인할 수 있게 카드로 보여줘요.',
   },
   {
     type: 'activity',
     title: '활동 이미지',
-    short: '문장에 담긴 행동이나 상황을 그림으로 보여줘요.',
-    detail:
-      '문장으로만 설명되어 이해하기 어려운 행동이나 상황을 장면 일러스트로 표현해 이해를 도와요.',
+    short: '문장에 나온 행동이나 상황을 그림으로 보여줘요.',
+    detail: '장소, 활동, 주의사항처럼 말로만 이해하기 어려운 부분을 한 장면으로 보여줘요.',
   },
   {
     type: 'sequence',
     title: '순서 이미지',
     short: '해야 할 일을 순서대로 보여줘요.',
-    detail:
-      '여러 단계를 거쳐야 하는 일을 번호와 화살표로 연결해 순서대로 보여줘요.',
+    detail: '신청, 제출, 준비, 이동처럼 여러 단계를 차례로 정리할 때 사용해요.',
   },
   {
     type: 'word',
     title: '단어 이미지',
-    short: '어려운 단어를 그림과 쉬운 뜻으로 설명해요.',
-    detail:
-      '아이가 처음 보는 어려운 단어를 그림과 한 줄 설명으로 함께 보여줘 어휘 이해를 도와요.',
+    short: '어려운 단어를 그림과 쉬운 설명으로 보여줘요.',
+    detail: '아이가 처음 보는 단어나 추상적인 말을 이해할 수 있게 돕는 카드예요.',
   },
 ];
 
-const RECOMMENDATIONS: Recommendation[] = [
-  {
-    type: 'supplies',
-    title: '준비물 이미지',
-    description: '도시락, 물, 운동화를 한눈에 보여줘요.',
-  },
-  {
-    type: 'sequence',
-    title: '순서 이미지',
-    description: '신청서 제출부터 집합까지 순서대로 보여줘요.',
-  },
-];
+const CARD_TYPE_LABELS: Record<string, string> = {
+  date_card: '날짜',
+  time_card: '시간',
+  place_card: '장소',
+  material_card: '준비물',
+  deadline_card: '마감일',
+  submit_to_card: '제출처',
+  signature_card: '서명',
+  choice_card: '선택',
+  step_card: '행동',
+  warning_card: '주의사항',
+  result_card: '결과',
+};
+
+function makeId(): number {
+  return Date.now() + Math.floor(Math.random() * 100000);
+}
+
+function visualToType(cardType: string): ImageType {
+  if (cardType === 'material_card') return 'supplies';
+  if (cardType === 'step_card') return 'sequence';
+  if (cardType === 'warning_card') return 'word';
+  return 'activity';
+}
+
+function getCardTitle(visual: VisualCard): string {
+  return visual.label || CARD_TYPE_LABELS[visual.cardType] || '시각자료';
+}
+
+function buildRecommendations(visuals: VisualCard[]): Recommendation[] {
+  if (!visuals.length) {
+    return [
+      {
+        type: 'supplies',
+        title: '준비물 이미지',
+        description: '문서에서 준비물을 찾으면 카드로 만들 수 있어요.',
+      },
+      {
+        type: 'sequence',
+        title: '순서 이미지',
+        description: '해야 할 일을 순서대로 보여줄 수 있어요.',
+      },
+    ];
+  }
+
+  return visuals.map((visual) => ({
+    type: visualToType(visual.cardType),
+    title: getCardTitle(visual),
+    description: visual.target,
+    visual,
+  }));
+}
+
+async function copyImage(imageUrl?: string) {
+  if (!imageUrl) return;
+  await navigator.clipboard?.writeText(imageUrl);
+}
+
+function downloadImage(imageUrl: string | undefined, index: number) {
+  if (!imageUrl) return;
+  const link = document.createElement('a');
+  link.href = imageUrl;
+  link.download = `ongle-visual-${index + 1}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 export default function VisualGenerator({ originalText = '', easyText = '', visuals = [] }: VisualGeneratorProps) {
   const [selected, setSelected] = useState<Set<ImageType>>(new Set());
   const [openInfo, setOpenInfo] = useState<ImageType | null>(null);
   const [generated, setGenerated] = useState<GeneratedItem[]>([]);
-  const [nextId, setNextId] = useState(1);
   const [pending, setPending] = useState<ImageType[]>([]);
-  const [pendingChoice, setPendingChoice] = useState<Record<string, { mode: 'original' | 'easy' | 'custom'; custom: string; portion?: string }>>({});
+  const [pendingChoice, setPendingChoice] = useState<Record<string, PendingChoice>>({});
+  const [notice, setNotice] = useState('');
+  const [regeneratingIds, setRegeneratingIds] = useState<Set<number>>(new Set());
 
-  const renderBoldText = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
-    return parts.map((part, i) => {
-      const match = part.match(/^\*\*([^*]+)\*\*$/);
-      if (match) {
-        return <strong key={i}>{match[1]}</strong>;
-      }
-      return <span key={i}>{part}</span>;
-    });
+  const recommendations = buildRecommendations(visuals);
+  const generatedKeys = new Set(generated.map((item) => (item.visual ? `${item.visual.cardType}:${item.visual.target}` : `manual:${item.type}`)));
+  const manualMadeTypes = new Set(generated.filter((item) => !item.visual).map((item) => item.type));
+
+  const appendItems = (items: Omit<GeneratedItem, 'id'>[]) => {
+    setGenerated((prev) => [
+      ...prev,
+      ...items.map((item) => ({
+        ...item,
+        id: makeId(),
+      })),
+    ]);
   };
 
-  const VALID_TYPES = new Set<ImageType>(['supplies', 'activity', 'sequence', 'word']);
-  const activeRecommendations: Recommendation[] = visuals.length > 0
-    ? visuals.map((v) => ({
-        type: (VALID_TYPES.has(v.cardType as ImageType) ? v.cardType : 'activity') as ImageType,
-        title: v.label,
-        description: v.target,
-      }))
-    : RECOMMENDATIONS;
-
-  const recommendedTypes = new Set(activeRecommendations.map((r) => r.type));
-  const generatedTypes = new Set(generated.map((g) => g.type));
+  const handleRecommendClick = (rec: Recommendation) => {
+    const key = rec.visual ? `${rec.visual.cardType}:${rec.visual.target}` : `manual:${rec.type}`;
+    if (generatedKeys.has(key)) return;
+    appendItems([{ type: rec.type, title: rec.title, description: rec.description, visual: rec.visual }]);
+  };
 
   const toggle = (type: ImageType) => {
-    if (recommendedTypes.has(type)) return;
-    if (generated.some((g) => g.type === type)) return;
+    if (manualMadeTypes.has(type)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
@@ -137,33 +174,15 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
     });
   };
 
-  const appendItems = (items: Omit<GeneratedItem, 'id'>[]) => {
-    setGenerated((prev) => {
-      const startId = nextId;
-      const next = items.map((it, i) => ({ ...it, id: startId + i }));
-      setNextId(startId + items.length);
-      return [...prev, ...next];
-    });
-  };
-
-  const handleRecommendClick = (rec: Recommendation) => {
-    appendItems([
-      {
-        type: rec.type,
-        title: rec.title,
-        description: rec.description,
-      },
-    ]);
-  };
-
   const handleSelectedClick = () => {
-    const types = ALL_TYPES.filter((t) => selected.has(t.type)).map((t) => t.type);
-    if (types.length === 0) return;
-    setPending((prev) => [...prev, ...types.filter((t) => !prev.includes(t))]);
+    if (!selected.size) return;
+
+    const nextTypes = [...selected].filter((type) => !pending.includes(type));
+    setPending((prev) => [...prev, ...nextTypes]);
     setPendingChoice((prev) => {
       const next = { ...prev };
-      types.forEach((t) => {
-        if (!next[t]) next[t] = { mode: 'easy', custom: '' };
+      nextTypes.forEach((type) => {
+        next[type] = next[type] || { mode: 'easy', custom: '' };
       });
       return next;
     });
@@ -171,328 +190,309 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
   };
 
   const confirmPending = (type: ImageType) => {
-    const meta = ALL_TYPES.find((t) => t.type === type);
+    const meta = ALL_TYPES.find((item) => item.type === type);
     if (!meta) return;
+
     const choice = pendingChoice[type];
-    let source = '';
-    if (choice?.mode === 'original') source = choice.portion || originalText;
-    else if (choice?.mode === 'easy') source = choice.portion || easyText;
-    else source = choice?.custom || '';
+    const source =
+      choice?.mode === 'original'
+        ? choice.portion || originalText
+        : choice?.mode === 'custom'
+          ? choice.custom
+          : choice?.portion || easyText;
+
     if (!source.trim()) return;
-    appendItems([
-      {
-        type,
-        title: meta.title,
-        description: meta.short,
-        source,
-      },
-    ]);
-    setPending((prev) => prev.filter((t) => t !== type));
+
+    appendItems([{ type, title: meta.title, description: meta.short, source }]);
+    setPending((prev) => prev.filter((item) => item !== type));
     setPendingChoice((prev) => {
       const next = { ...prev };
       delete next[type];
       return next;
     });
+    setNotice('직접 선택한 시각자료 틀을 만들었어요. 세부 생성 기능은 다음 단계에서 연결할 수 있어요.');
   };
 
-  const cancelPending = (type: ImageType) => {
-    setPending((prev) => prev.filter((t) => t !== type));
-    setPendingChoice((prev) => {
-      const next = { ...prev };
-      delete next[type];
-      return next;
-    });
+  const setChoiceMode = (type: ImageType, mode: SourceMode) => {
+    setPendingChoice((prev) => ({
+      ...prev,
+      [type]: { ...(prev[type] || { custom: '' }), mode },
+    }));
   };
 
-  const regenerate = (id: number) => {
-    setGenerated((prev) => prev.map((it) => (it.id === id ? { ...it } : it)));
+  const requestRegenerate = async (item: GeneratedItem) => {
+    if (!item.visual?.prompt) {
+      setNotice('추천 카드에서 생성된 이미지부터 다시 생성할 수 있어요. 직접 선택 기능의 생성 API는 다음 단계에서 연결할 수 있어요.');
+      return;
+    }
+
+    setNotice('');
+    setRegeneratingIds((prev) => new Set(prev).add(item.id));
+
+    try {
+      const response = await fetch('/api/visual/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: item.visual.prompt,
+          cardType: item.visual.cardType,
+          target: item.visual.target,
+        }),
+      });
+      const data = (await response.json()) as { imageUrl?: string; error?: string };
+
+      if (!response.ok || !data.imageUrl) {
+        throw new Error(data.error || '이미지를 다시 만들지 못했어요.');
+      }
+
+      setGenerated((prev) =>
+        prev.map((current) =>
+          current.id === item.id && current.visual
+            ? { ...current, visual: { ...current.visual, imageUrl: data.imageUrl ?? '' } }
+            : current,
+        ),
+      );
+      setNotice('새로운 이미지로 다시 만들었어요.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setNotice(`다시 생성 실패: ${message}`);
+    } finally {
+      setRegeneratingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
+  const renderImageArea = (item: GeneratedItem, index: number) => {
+    const imageUrl = item.visual?.imageUrl;
+    const isRegenerating = regeneratingIds.has(item.id);
+
+    return (
+      <div className="bg-gray-50 p-4">
+        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white">
+          {imageUrl ? (
+            <img src={imageUrl} alt={item.description || item.title} className="h-full w-full object-contain" loading="lazy" />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center px-4 text-center text-gray-400">
+              <ImageIcon className="h-10 w-10" />
+              <p className="mt-2 text-sm">이미지 영역</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => copyImage(imageUrl)}
+            disabled={!imageUrl}
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ backgroundColor: '#354d3f' }}
+          >
+            <Copy className="h-4 w-4" />
+            복사
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadImage(imageUrl, index)}
+            disabled={!imageUrl}
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ backgroundColor: '#354d3f' }}
+          >
+            <Download className="h-4 w-4" />
+            저장
+          </button>
+          <button
+            type="button"
+            onClick={() => requestRegenerate(item)}
+            disabled={isRegenerating}
+            className="inline-flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-sm transition-colors disabled:cursor-wait disabled:opacity-60"
+            style={{ borderColor: '#354d3f', color: '#354d3f' }}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRegenerating ? 'animate-spin' : ''}`} />
+            {isRegenerating ? '다시 생성 중' : '다시 생성'}
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
     <>
-    <section className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
-      <div className="flex items-start gap-3">
-        <ImageIcon className="w-6 h-6 mt-1 flex-shrink-0" style={{ color: '#354d3f' }} />
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">시각자료 만들기</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            문서 내용을 그림으로 만들어 아이의 이해를 도와요.
-          </p>
+      <section className="space-y-6 rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex items-start gap-3">
+          <ImageIcon className="mt-1 h-6 w-6 flex-shrink-0" style={{ color: '#354d3f' }} />
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">시각자료 만들기</h2>
+            <p className="mt-1 text-sm text-gray-600">문서 내용을 그림 카드로 만들어 아이가 이해하기 쉽게 정리해요.</p>
+          </div>
         </div>
-      </div>
 
-      {/* 추천 시각자료 */}
-      <div className="rounded-xl p-5 border" style={{ backgroundColor: '#f9f3ef', borderColor: '#e0bda5' }}>
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="w-5 h-5" style={{ color: '#354d3f' }} />
-          <h3 className="font-bold text-gray-900">추천 시각자료</h3>
-        </div>
-        <p className="text-sm text-gray-600 mb-4">
-          문서에서 그림으로 보여주면 이해가 쉬운 부분을 골랐어요.
-        </p>
+        {notice && <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">{notice}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {activeRecommendations.map((rec) => {
-            const alreadyMade = generatedTypes.has(rec.type);
-            return (
-            <div key={rec.type} className="bg-white rounded-lg p-4 border border-gray-200">
-              <p className="font-semibold text-gray-900">{rec.title}</p>
-              <p className="text-sm text-gray-600 mt-1 mb-3">{rec.description}</p>
-              <button
-                onClick={() => handleRecommendClick(rec)}
-                disabled={alreadyMade}
-                className="w-full px-3 py-2 rounded-lg text-white text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#354d3f' }}
-                onMouseEnter={(e) => alreadyMade ? null : (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-              >
-                <Wand2 className="w-4 h-4" />
-                {alreadyMade ? '이미 만들었어요' : '이 이미지 만들기'}
-              </button>
-            </div>
-            );
-          })}
-        </div>
-      </div>
+        <div className="rounded-xl border p-5" style={{ backgroundColor: '#f9f3ef', borderColor: '#e0bda5' }}>
+          <div className="mb-1 flex items-center gap-2">
+            <Sparkles className="h-5 w-5" style={{ color: '#354d3f' }} />
+            <h3 className="font-bold text-gray-900">추천 시각자료</h3>
+          </div>
+          <p className="mb-4 text-sm text-gray-600">문서에서 그림으로 보여주면 좋은 부분을 골라냈어요.</p>
 
-      {/* 직접 선택하기 */}
-      <div>
-        <h3 className="font-bold text-gray-900 mb-1">직접 선택하기</h3>
-        <p className="text-sm text-gray-600 mb-4">
-          원하는 시각자료 유형을 직접 골라 만들 수 있어요. (추천된 항목은 위에서 만들 수 있어요)
-        </p>
-
-        <div className="space-y-2">
-          {ALL_TYPES.map((item) => {
-            const isRecommended = recommendedTypes.has(item.type);
-            const isMade = generatedTypes.has(item.type);
-            const isDisabled = isRecommended || isMade;
-            const isChecked = selected.has(item.type);
-            const isInfoOpen = openInfo === item.type;
-            return (
-              <div
-                key={item.type}
-                className="border border-gray-200 rounded-lg"
-              >
-                <div className="flex items-center gap-3 p-3">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 flex-shrink-0"
-                    style={{ accentColor: '#354d3f' }}
-                    checked={isChecked}
-                    disabled={isDisabled}
-                    onChange={() => toggle(item.type)}
-                  />
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <p
-                      className={`font-semibold ${isDisabled ? 'text-gray-400' : 'text-gray-900'}`}
-                    >
-                      {item.title}
-                    </p>
-                    {isMade && !isRecommended && (
-                      <span className="text-xs text-gray-500">(이미 만들었어요)</span>
-                    )}
-                  </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {recommendations.map((rec, index) => {
+              const key = rec.visual ? `${rec.visual.cardType}:${rec.visual.target}` : `manual:${rec.type}`;
+              const alreadyMade = generatedKeys.has(key);
+              return (
+                <div key={`${key}-${index}`} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <p className="font-semibold text-gray-900">{rec.title}</p>
+                  <p className="mb-3 mt-1 text-sm text-gray-600">{rec.description}</p>
                   <button
                     type="button"
-                    onClick={() => setOpenInfo(isInfoOpen ? null : item.type)}
-                    className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label={`${item.title} 설명 보기`}
+                    onClick={() => handleRecommendClick(rec)}
+                    disabled={alreadyMade}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ backgroundColor: '#354d3f' }}
                   >
-                    <Info className="w-4 h-4 text-gray-500" />
+                    <Wand2 className="h-4 w-4" />
+                    {alreadyMade ? '이미 만들었어요' : '이미지 만들기'}
                   </button>
                 </div>
-                {isInfoOpen && (
-                  <div className="px-4 pb-4 pl-10">
-                    <div className="rounded-md p-3 text-sm leading-relaxed" style={{ backgroundColor: '#f9f3ef', color: '#354d3f' }}>
-                      <p className="font-medium mb-1">{item.short}</p>
-                      <p className="text-gray-700">{item.detail}</p>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-1 font-bold text-gray-900">직접 선택하기</h3>
+          <p className="mb-4 text-sm text-gray-600">원하는 시각자료 유형을 직접 골라 만들 수 있어요.</p>
+
+          <div className="space-y-2">
+            {ALL_TYPES.map((item) => {
+              const isChecked = selected.has(item.type);
+              const isInfoOpen = openInfo === item.type;
+              const isMade = manualMadeTypes.has(item.type);
+              return (
+                <div key={item.type} className="rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-3 p-3">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 flex-shrink-0"
+                      style={{ accentColor: '#354d3f' }}
+                      checked={isChecked}
+                      disabled={isMade}
+                      onChange={() => toggle(item.type)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-semibold ${isMade ? 'text-gray-400' : 'text-gray-900'}`}>{item.title}</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setOpenInfo(isInfoOpen ? null : item.type)}
+                      className="rounded-full p-1 transition-colors hover:bg-gray-100"
+                      aria-label={`${item.title} 설명 보기`}
+                    >
+                      <Info className="h-4 w-4 text-gray-500" />
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })}
+                  {isInfoOpen && (
+                    <div className="px-4 pb-4 pl-10">
+                      <div className="rounded-md p-3 text-sm leading-relaxed" style={{ backgroundColor: '#f9f3ef', color: '#354d3f' }}>
+                        <p className="mb-1 font-medium">{item.short}</p>
+                        <p className="text-gray-700">{item.detail}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSelectedClick}
+              disabled={selected.size === 0}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: '#354d3f' }}
+            >
+              <Wand2 className="h-4 w-4" />
+              선택한 이미지 만들기
+            </button>
+          </div>
         </div>
 
         {pending.length > 0 && (
-          <div className="mt-4 space-y-4">
+          <div className="space-y-4">
             {pending.map((type) => {
-              const meta = ALL_TYPES.find((t) => t.type === type);
+              const meta = ALL_TYPES.find((item) => item.type === type);
               if (!meta) return null;
-              const unit = type === 'word' ? '단어' : '문장';
-              const choice = pendingChoice[type] || { mode: 'easy' as const, custom: '' };
+
+              const choice = pendingChoice[type] || { mode: 'easy', custom: '' };
               const isValid =
-                (choice.mode === 'original' && (choice.portion?.trim() || originalText.trim())) ||
-                (choice.mode === 'easy' && (choice.portion?.trim() || easyText.trim())) ||
-                (choice.mode === 'custom' && choice.custom.trim());
-
-              const setMode = (mode: 'original' | 'easy' | 'custom') =>
-                setPendingChoice((prev) => ({
-                  ...prev,
-                  [type]: { ...(prev[type] || { custom: '' }), mode, portion: mode === 'custom' ? prev[type]?.portion : undefined },
-                }));
-
-              const setPortion = (text: string) =>
-                setPendingChoice((prev) => ({
-                  ...prev,
-                  [type]: { ...(prev[type] || { custom: '' }), portion: text },
-                }));
-
-              const isWordType = type === 'word';
-
-              const renderTextBox = (mode: 'easy' | 'original', text: string, title: string) => {
-                const isSelected = choice.mode === mode;
-                const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-                return (
-                  <div
-                    onClick={() => {
-                      if (!isSelected) {
-                        setMode(mode);
-                        setPortion('');
-                      }
-                    }}
-                    className={`rounded-lg bg-white p-3 cursor-pointer ${isSelected ? '' : 'border border-gray-200 hover:border-gray-300'}`}
-                    style={isSelected ? { borderColor: '#354d3f', borderWidth: 2 } : undefined}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <input
-                        type="radio"
-                        readOnly
-                        checked={isSelected}
-                        style={{ accentColor: '#354d3f' }}
-                      />
-                      <p className="font-semibold text-gray-900 text-sm">{title}</p>
-                    </div>
-                    {!text.trim() ? (
-                      <p className="text-sm text-gray-500">내용이 없어요.</p>
-                    ) : isSelected ? (
-                      <div
-                        className="text-sm text-gray-800 leading-relaxed max-h-60 overflow-y-auto overflow-x-hidden space-y-3"
-                        onMouseUp={(e) => {
-                          const sel = window.getSelection?.()?.toString().trim();
-                          if (sel) {
-                            setPortion(sel);
-                            e.stopPropagation();
-                          }
-                        }}
-                      >
-                        {paragraphs.map((para, pIdx) => {
-                          const units = isWordType
-                            ? para.split(/(\*\*[^*]+\*\*|\s+)/).filter(s => s)
-                            : para.split(/(?<=[.!?。])\s+/).flatMap((s, i, arr) =>
-                                i < arr.length - 1 ? [s, ' '] : [s]
-                              );
-                          return (
-                            <p key={pIdx}>
-                              {units.map((u, uIdx) => {
-                                if (/^\s+$/.test(u)) return <span key={uIdx}>{u}</span>;
-                                const cleaned = u.trim();
-                                if (!cleaned) return <span key={uIdx}>{u}</span>;
-                                const isPortion = choice.portion === cleaned;
-                                return (
-                                  <span
-                                    key={uIdx}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPortion(cleaned);
-                                    }}
-                                    className={`cursor-pointer rounded px-0.5 ${isPortion ? '' : 'hover:bg-gray-100'}`}
-                                    style={isPortion ? { backgroundColor: '#e0e7df' } : undefined}
-                                  >
-                                    {renderBoldText(u)}
-                                  </span>
-                                );
-                              })}
-                            </p>
-                          );
-                        })}
-                        {choice.portion && (
-                          <div className="pt-2 border-t border-gray-200 flex items-center justify-between gap-2 overflow-hidden">
-                            <p className="text-xs text-gray-600 truncate min-w-0">
-                              선택: <span className="text-gray-900">{renderBoldText(choice.portion)}</span>
-                            </p>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPortion('');
-                              }}
-                              className="text-xs text-gray-500 hover:text-gray-700 flex-shrink-0"
-                            >
-                              선택 해제
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-700 line-clamp-3 whitespace-pre-line">
-                        {renderBoldText(text)}
-                      </div>
-                    )}
-                  </div>
-                );
-              };
+                (choice.mode === 'original' && Boolean((choice.portion || originalText).trim())) ||
+                (choice.mode === 'easy' && Boolean((choice.portion || easyText).trim())) ||
+                (choice.mode === 'custom' && Boolean(choice.custom.trim()));
 
               return (
                 <div key={type} className="rounded-lg border-2 p-4" style={{ borderColor: '#82987f', backgroundColor: '#f9f3ef' }}>
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-bold text-gray-900">
-                      {meta.title} {unit} 선택하기
-                    </h4>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="font-bold text-gray-900">{meta.title} 내용 선택하기</h4>
                     <button
-                      onClick={() => cancelPending(type)}
+                      type="button"
+                      onClick={() => setPending((prev) => prev.filter((item) => item !== type))}
                       className="text-sm text-gray-500 hover:text-gray-700"
                     >
                       취소
                     </button>
                   </div>
-                  <p className="text-xs text-gray-600 mb-3">
-                    {unit}을 클릭하거나 드래그하면 선택할 수 있어요.
-                  </p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {renderTextBox('easy', easyText, '쉬운글에서 선택')}
-                    {renderTextBox('original', originalText, '원문에서 선택')}
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {(['easy', 'original'] as const).map((mode) => {
+                      const text = mode === 'easy' ? easyText : originalText;
+                      const selectedMode = choice.mode === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setChoiceMode(type, mode)}
+                          className="rounded-lg bg-white p-3 text-left"
+                          style={selectedMode ? { borderColor: '#354d3f', borderWidth: 2 } : { borderColor: '#e5e7eb', borderWidth: 1 }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">{mode === 'easy' ? '쉬운글에서 선택' : '원문에서 선택'}</p>
+                          <p className="mt-2 line-clamp-4 whitespace-pre-line text-sm text-gray-700">{text || '내용이 없어요'}</p>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <label
-                    onClick={() => choice.mode !== 'custom' && setMode('custom')}
-                    className={`mt-3 block rounded-lg bg-white p-3 cursor-text ${choice.mode === 'custom' ? '' : 'border border-gray-200'}`}
-                    style={choice.mode === 'custom' ? { borderColor: '#354d3f', borderWidth: 2 } : undefined}
+                    onClick={() => setChoiceMode(type, 'custom')}
+                    className="mt-3 block rounded-lg bg-white p-3"
+                    style={choice.mode === 'custom' ? { borderColor: '#354d3f', borderWidth: 2 } : { borderColor: '#e5e7eb', borderWidth: 1 }}
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      <input
-                        type="radio"
-                        readOnly
-                        checked={choice.mode === 'custom'}
-                        style={{ accentColor: '#354d3f' }}
-                      />
-                      <p className="font-semibold text-gray-900 text-sm">직접 입력하기</p>
-                    </div>
+                    <p className="mb-2 text-sm font-semibold text-gray-900">직접 입력하기</p>
                     <textarea
                       value={choice.custom}
-                      onChange={(e) =>
+                      onChange={(event) =>
                         setPendingChoice((prev) => ({
                           ...prev,
-                          [type]: { ...(prev[type] || { custom: '' }), mode: 'custom', custom: e.target.value },
+                          [type]: { ...(prev[type] || { custom: '' }), mode: 'custom', custom: event.target.value },
                         }))
                       }
-                      onFocus={() => setMode('custom')}
-                      placeholder={`그림으로 만들 ${unit}을 입력해주세요.`}
-                      className="w-full min-h-[36px] p-2 border border-gray-200 rounded-md text-sm focus:outline-none resize-none"
-                      rows={1}
+                      placeholder="그림으로 만들 내용을 입력해주세요."
+                      className="min-h-[64px] w-full resize-none rounded-md border border-gray-200 p-2 text-sm focus:outline-none"
                     />
                   </label>
+
                   <div className="mt-3 flex justify-end">
                     <button
+                      type="button"
                       onClick={() => confirmPending(type)}
                       disabled={!isValid}
-                      className="px-4 py-2 rounded-lg text-white text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                       style={{ backgroundColor: '#354d3f' }}
-                      onMouseEnter={(e) => isValid && (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
                     >
-                      <Wand2 className="w-4 h-4" />
+                      <Wand2 className="h-4 w-4" />
                       이미지 만들기
                     </button>
                   </div>
@@ -501,168 +501,27 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
             })}
           </div>
         )}
-
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={handleSelectedClick}
-            disabled={selected.size === 0}
-            className="px-4 py-2 rounded-lg text-white text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#354d3f' }}
-            onMouseEnter={(e) => selected.size === 0 ? null : (e.currentTarget.style.backgroundColor = '#2a3d32')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-          >
-            <Wand2 className="w-4 h-4" />
-            선택한 이미지 만들기
-          </button>
-        </div>
-      </div>
-
-    </section>
-    {generated.length > 0 && (
-      <section className="bg-white border border-gray-200 rounded-xl p-6 mt-6">
-        <h3 className="font-bold text-gray-900 mb-4">생성된 이미지</h3>
-        <div className="space-y-4">
-          {generated.map((item, idx) => (
-            <div
-              key={item.id}
-              className="rounded-lg border border-gray-200 overflow-hidden bg-white"
-            >
-              <div className="p-4">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <p className="font-semibold text-gray-900">{item.title}</p>
-                  <span className="text-xs text-gray-500">#{idx + 1}</span>
-                </div>
-                <p className="text-sm text-gray-600 mb-4">{item.description}</p>
-
-                {item.type === 'supplies' ? (
-                  <div className="grid grid-cols-3 gap-4">
-                    {SUPPLIES_ITEMS.map((s) => (
-                      <div key={s.label} className="flex flex-col items-center border border-gray-200 rounded-lg p-3 bg-white">
-                        <div className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
-                          <img src={s.src} alt={s.label} className="w-full h-full object-contain" />
-                        </div>
-                        <p className="mt-2 text-sm font-medium text-gray-800">{s.label}</p>
-                        <div className="mt-2 flex flex-wrap gap-1 justify-center">
-                          <button
-                            aria-label={`${s.label} 복사하기`}
-                            className="px-2 py-1 text-xs rounded-md text-white flex items-center gap-1 transition-colors"
-                            style={{ backgroundColor: '#354d3f' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-                          >
-                            <Copy className="w-3 h-3" />
-                            복사
-                          </button>
-                          <button
-                            aria-label={`${s.label} 저장하기`}
-                            className="px-2 py-1 text-xs rounded-md text-white flex items-center gap-1 transition-colors"
-                            style={{ backgroundColor: '#354d3f' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-                          >
-                            <Download className="w-3 h-3" />
-                            저장
-                          </button>
-                          <button
-                            aria-label={`${s.label} 다시 생성하기`}
-                            className="px-2 py-1 text-xs rounded-md border bg-white text-gray-700 hover:bg-gray-50 flex items-center gap-1"
-                            style={{ borderColor: '#354d3f', color: '#354d3f' }}
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            다시
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : item.type === 'sequence' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {SEQUENCE_STEPS.map((s, sIdx) => (
-                      <div key={sIdx} className="flex flex-col items-center border border-gray-200 rounded-lg p-3 bg-white">
-                        <div className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
-                          <img src={s.src} alt={s.label} className="w-full h-full object-contain" />
-                        </div>
-                        <div className="mt-2 flex items-start gap-2">
-                          <span
-                            className="inline-flex items-center justify-center w-6 h-6 rounded-full text-white text-xs font-bold flex-shrink-0"
-                            style={{ backgroundColor: '#354d3f' }}
-                          >
-                            {sIdx + 1}
-                          </span>
-                          <p className="text-sm font-medium text-gray-800 leading-snug">{s.label}</p>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1 justify-center">
-                          <button
-                            aria-label={`${s.label} 복사하기`}
-                            className="px-2 py-1 text-xs rounded-md text-white flex items-center gap-1 transition-colors"
-                            style={{ backgroundColor: '#354d3f' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-                          >
-                            <Copy className="w-3 h-3" />
-                            복사
-                          </button>
-                          <button
-                            aria-label={`${s.label} 저장하기`}
-                            className="px-2 py-1 text-xs rounded-md text-white flex items-center gap-1 transition-colors"
-                            style={{ backgroundColor: '#354d3f' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-                          >
-                            <Download className="w-3 h-3" />
-                            저장
-                          </button>
-                          <button
-                            aria-label={`${s.label} 다시 생성하기`}
-                            className="px-2 py-1 text-xs rounded-md border bg-white hover:bg-gray-50 flex items-center gap-1"
-                            style={{ borderColor: '#354d3f', color: '#354d3f' }}
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            다시
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    <div className="aspect-[4/3] bg-gray-100 rounded-lg" />
-                    <div className="mt-4 flex flex-wrap gap-2 justify-end">
-                      <button
-                        className="px-3 py-2 text-sm rounded-lg text-white flex items-center gap-1 transition-colors"
-                        style={{ backgroundColor: '#354d3f' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-                      >
-                        <Copy className="w-4 h-4" />
-                        복사하기
-                      </button>
-                      <button
-                        className="px-3 py-2 text-sm rounded-lg text-white flex items-center gap-1 transition-colors"
-                        style={{ backgroundColor: '#354d3f' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2a3d32')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#354d3f')}
-                      >
-                        <Download className="w-4 h-4" />
-                        저장하기
-                      </button>
-                      <button
-                        onClick={() => regenerate(item.id)}
-                        className="px-3 py-2 text-sm rounded-lg border bg-white hover:bg-gray-50 flex items-center gap-1"
-                        style={{ borderColor: '#354d3f', color: '#354d3f' }}
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        다시 생성하기
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
       </section>
-    )}
+
+      {generated.length > 0 && (
+        <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="mb-4 font-bold text-gray-900">생성된 이미지</h3>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {generated.map((item, index) => (
+              <article key={item.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-100 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-gray-900">{item.title}</p>
+                    <span className="text-xs text-gray-500">#{index + 1}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-600">{item.description}</p>
+                </div>
+                {renderImageArea(item, index)}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }

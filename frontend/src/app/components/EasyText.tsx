@@ -7,17 +7,38 @@ interface Word {
   examples: string[];
 }
 
+interface DifficultWord {
+  word: string;
+  grade: string;
+  meaning: string;
+  example: string;
+  displayMode: {
+    level1: 'inline' | 'tooltip' | 'none';
+    level2: 'tooltip' | 'none';
+    level3: 'tooltip' | 'none';
+  };
+}
+
 interface EasyTextProps {
   content: string;
   easierContent?: string;
   detailedContent?: string;
   words: Word[];
+  wordsByLevel?: {
+    easier: DifficultWord[];
+    basic: DifficultWord[];
+    detailed: DifficultWord[];
+  };
   savedWords: Set<string>;
   onSaveWord: (word: string, meaning: string, examples: string[]) => void;
 }
 
-export default function EasyText({ content, easierContent, detailedContent, words, savedWords, onSaveWord }: EasyTextProps) {
+export default function EasyText({ content, easierContent, detailedContent, words, wordsByLevel, savedWords, onSaveWord }: EasyTextProps) {
   const [difficulty, setDifficulty] = useState<'easier' | 'basic' | 'detailed'>('basic');
+
+  const activeWords: Word[] = wordsByLevel
+    ? (wordsByLevel[difficulty] || []).map(dw => ({ word: dw.word, meaning: dw.meaning, examples: dw.example ? [dw.example] : [] }))
+    : words;
 
   const difficulties = [
     { id: 'easier', label: '더 쉽게' },
@@ -50,7 +71,7 @@ export default function EasyText({ content, easierContent, detailedContent, word
       let segmentLastIndex = 0;
 
       // 단어를 찾아서 치환
-      words.forEach((wordData) => {
+      activeWords.forEach((wordData) => {
         let searchStart = 0;
         while (true) {
           const index = segment.indexOf(wordData.word, searchStart);

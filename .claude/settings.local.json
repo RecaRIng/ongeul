@@ -58,7 +58,27 @@
       "Bash(explorer \"C:\\\\홍익대\\\\홍익 4-1\\\\졸프\\\\ongeul-integrated-features\\\\ongeul-integrated-features\")",
       "PowerShell(Start-Process explorer.exe -ArgumentList \"C:\\\\ȫ�ʹ�\\\\ȫ�� 4-1\\\\����\\\\ongeul-integrated-features\\\\ongeul-integrated-features\")",
       "Bash(Get-ChildItem -Path \"c:\\\\홍익대\\\\홍익 4-1\\\\졸프\\\\온글 개발 \\(2\\)\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(Copy-Item \"C:\\\\홍익대\\\\홍익 4-1\\\\졸프\\\\ongeul-integrated-features\\\\ongeul-integrated-features\\\\backend\\\\src\\\\modules\\\\easyText\\\\data\\\\vocab.json\" \"C:\\\\홍익대\\\\홍익 4-1\\\\졸프\\\\ongeul-integrated-0611\\\\ongeul-integrated-0611\\\\ongeul-integrated-0608\\\\backend\\\\src\\\\modules\\\\easyText\\\\data\\\\vocab.json\" -Force)",
+      "Bash(node dist/app.js)",
+      "Bash(curl -s -X POST http://localhost:4000/api/analyze/text -H 'Content-Type: application/json' -d '{\"text\":\"2025학년도 2학기 현장체험학습 안내입니다. 9월 20일 금요일 오전 9시부터 오후 3시까지 홍익대학교 서울캠퍼스에서 진행됩니다. 준비물은 필기도구, 개인 물병, 점심 도시락입니다.\"}')",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match \"node\" } | Select-Object ProcessName, Id, StartTime)",
+      "PowerShell(head -5)",
+      "PowerShell(Get-Process -Id 115684)",
+      "PowerShell(Get-Process -Id 115684 -Module 2>$null | Where-Object { $_.ModuleName -match \"\\\\.js$\" } | Select-Object -First 5 FileName)",
+      "PowerShell(Get-WmiObject Win32_Process -Filter \"ProcessId=115684\")",
+      "PowerShell(\\(Get-WmiObject Win32_Process -Filter \"ProcessId=115684\"\\).CommandLine)",
+      "PowerShell(Stop-Process -Id 115684 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell($body = '{\"text\": \"2025학년도 2학기 현장체험학습 안내입니다. 준비물은 필기도구, 개인 물병입니다.\"}'; $response = Invoke-RestMethod -Uri \"http://localhost:4000/api/analyze/text\" -Method POST -Body $body -ContentType \"application/json; charset=utf-8\" -TimeoutSec 60; $response.easyText | ConvertTo-Json -Depth 5)",
+      "PowerShell(Get-Process -Name \"tsx\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Id 49788, 125092, 126096 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue | Where-Object { $_.StartTime -gt \\(Get-Date\\).AddHours\\(-1\\) } | Stop-Process -Force; Start-Sleep -Seconds 1; Write-Host \"종료 완료\")",
+      "Bash(rm -f run-backend-restart.log)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); et=d['easyText']; print\\('level1:', et['level1']['text'][:120]\\); print\\('level2:', et['level2']['text'][:120]\\); print\\('level3:', et['level3']['text'][:120]\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); const et=d.easyText; console.log\\('level1:', et.level1.text.slice\\(0,150\\)\\); console.log\\('---'\\); console.log\\('level2:', et.level2.text.slice\\(0,150\\)\\); console.log\\('---'\\); console.log\\('level3:', et.level3.text.slice\\(0,150\\)\\);\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(pkill -f \"tsx src/app.ts\")"
     ]
   }
 }

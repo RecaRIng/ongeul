@@ -13,6 +13,46 @@ interface Activity {
   rightCards?: string[];
 }
 
+interface DifficultWord {
+  word: string;
+  grade: string;
+  meaning: string;
+  example: string;
+  displayMode: {
+    level1: 'inline' | 'tooltip' | 'none';
+    level2: 'tooltip' | 'none';
+    level3: 'tooltip' | 'none';
+  };
+}
+
+interface ExtraField {
+  label: string;
+  value: string;
+  category:
+    | 'schedule'
+    | 'application'
+    | 'place'
+    | 'material'
+    | 'target'
+    | 'condition'
+    | 'contact'
+    | 'warning'
+    | 'learning'
+    | 'other';
+  importance: 'high' | 'medium' | 'low';
+  sourceText?: string;
+}
+
+interface AnalysisSummary {
+  mainSentence: string;
+  primaryItems: Array<{
+    label: string;
+    value: string;
+    source: 'coreFields' | 'extraFields';
+  }>;
+  warningItems: string[];
+}
+
 interface ResultData {
   guideSummary: string;
   easyText: string;
@@ -20,6 +60,13 @@ interface ResultData {
   detailedText?: string;
   originalText?: string;
   words: Array<{ word: string; meaning: string; examples: string[] }>;
+  wordsByLevel?: {
+    easier: DifficultWord[];
+    basic: DifficultWord[];
+    detailed: DifficultWord[];
+  };
+  summary?: AnalysisSummary;
+  extraFields?: ExtraField[];
   activities: Activity[];
   outputPlan?: {
     commonBlocks: string[];
@@ -39,6 +86,29 @@ interface ResultViewProps {
 
 export default function ResultView({ data, savedWords, onSaveWord, onShowChildView, onShowActivities, onShowVisuals }: ResultViewProps) {
   const [showOriginal, setShowOriginal] = useState(false);
+  const normalizeDisplayText = (value: string) => value.replace(/\s+/g, '').trim();
+  const cleanWarningText = (value: string) => value
+    .replace(/\s+/g, ' ')
+    .replace(/^[^:：]{1,18}[:：]\s*/, '')
+    .replace(/^\s*[-*•ㆍ·]\s*/, '')
+    .replace(/^[^:：]{1,18}[:：]\s*/, '')
+    .trim();
+  const uniqueItems = <T extends { label: string; value: string }>(items: T[]): T[] => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const key = `${normalizeDisplayText(item.label)}:${normalizeDisplayText(item.value)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const primaryItems = data.summary?.primaryItems || [];
+  const highExtraFields = (data.extraFields || []).filter((field) => field.importance === 'high');
+  const displayItems = uniqueItems([...primaryItems, ...highExtraFields]).slice(0, 6);
+  const warningItems = Array.from(new Set([
+    ...(data.summary?.warningItems || []),
+    ...(data.extraFields || []).filter((field) => field.category === 'warning').map((field) => field.value),
+  ].map(cleanWarningText).filter(Boolean)));
 
   const renderTextWithTooltips = (text: string) => {
     const parts: React.ReactNode[] = [];
@@ -126,6 +196,32 @@ export default function ResultView({ data, savedWords, onSaveWord, onShowChildVi
                 );
               })}
             </div>
+
+            {displayItems.length > 0 && (
+              <div className="mt-4 border-t border-[#e0bda5] pt-4">
+                <h3 className="mb-2 text-sm font-bold text-gray-900">추가 핵심 정보</h3>
+                <div className="space-y-2">
+                  {displayItems.map((item, idx) => (
+                    <div key={`${item.label}-${idx}`} className="rounded-lg bg-white/70 px-3 py-2 text-sm">
+                      <span className="font-semibold" style={{ color: '#354d3f' }}>{item.label}</span>
+                      <span className="mx-1 text-gray-400">·</span>
+                      <span className="text-gray-800">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {warningItems.length > 0 && (
+              <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2">
+                <h3 className="mb-1 text-sm font-bold text-yellow-900">주의사항</h3>
+                <ul className="space-y-1 text-sm text-yellow-900">
+                  {warningItems.slice(0, 4).map((item, idx) => (
+                    <li key={`${item}-${idx}`}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -164,6 +260,7 @@ export default function ResultView({ data, savedWords, onSaveWord, onShowChildVi
           easierContent={data.easierText}
           detailedContent={data.detailedText}
           words={data.words}
+          wordsByLevel={data.wordsByLevel}
           savedWords={savedWords}
           onSaveWord={onSaveWord}
         />

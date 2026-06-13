@@ -1,10 +1,15 @@
 import express from 'express';
-import type { CoreFields } from '../../common/types';
-import { generateEasyText } from './easyText.service';
+import type { ActionStep, CoreFields } from '../../common/types.js';
+import { generateEasyText } from './easyText.service.js';
 
 const router = express.Router();
 
-function validateEasyTextRequest(body: unknown): body is { rawText: string; coreFields: CoreFields } {
+function validateEasyTextRequest(body: unknown): body is {
+  rawText: string;
+  coreFields: CoreFields;
+  documentType?: string;
+  actionSteps?: ActionStep[];
+} {
   if (!body || typeof body !== 'object') return false;
   const b = body as Record<string, unknown>;
   if (typeof b.rawText !== 'string' || b.rawText.trim().length === 0) return false;
@@ -30,8 +35,8 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
-    const { rawText, coreFields } = req.body;
-    const result = await generateEasyText(rawText, coreFields);
+    const { rawText, coreFields, documentType, actionSteps } = req.body;
+    const result = await generateEasyText(rawText, coreFields, documentType, actionSteps);
     return res.status(200).json(result);
   } catch (error) {
     console.error('EasyText generation error:', error);

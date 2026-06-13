@@ -1,0 +1,28 @@
+[visual] image generation failed once, retrying: 429 Rate limit reached for gpt-image-1 (for limit gpt-image) in organization org-4FAaYbEG4IYbZIxa931FsFOo on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit https://platform.openai.com/account/rate-limits to learn more.
+[visual] image generation retry failed: 429 Rate limit reached for gpt-image-1 (for limit gpt-image) in organization org-4FAaYbEG4IYbZIxa931FsFOo on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit https://platform.openai.com/account/rate-limits to learn more.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+Error: Transform failed with 1 error:
+C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\src\modules\easyText\easyText.prompt.ts:14:49: ERROR: Expected ";" but found ":"
+    at failureErrorWithLog (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\node_modules\esbuild\lib\main.js:1748:15)
+    at C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\node_modules\esbuild\lib\main.js:1017:50
+    at responseCallbacks.<computed> (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\node_modules\esbuild\lib\main.js:884:9)
+    at handleIncomingPacket (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\node_modules\esbuild\lib\main.js:939:12)
+    at Socket.readFromStdout (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\node_modules\esbuild\lib\main.js:862:7)
+    at Socket.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at Readable.push (node:internal/streams/readable:394:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
+  name: 'TransformError'
+}
+
+Node.js v24.16.0
+easyText error: Error: LLM 응답 JSON 파싱 실패: {
+  "level1": "광명북 가정통신문이에요.\n\n2026년 우유급식 수요 조사를 해요.\n\n광명북초등학교에서 발행하였어요.\n\n연락처는 02-2619-3846이에요.\n\n학교장은 이 문서를 발행한 사람이에요.\n\n영양교사는 이 일에 책임이 있는 선생님이에요.\n\n2026년 우유급식을 해야 할지 결정하기 위해 보호자와 학생의 의견을 듣고 싶어요.\n\n아래 내용을 확인해 주세요.\n\n우유급식 희망 여부를 작성하고\n\n2026년 3월 18일 수요일까지 담임선생님께 제출해 주세요.\n\n희망자가 전체 학생의 70% 
+    at generateEasyText (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\src\modules\easyText\easyText.service.ts:87:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async analyzeText (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\src\modules\document\document.service.ts:81:20)
+    at async <anonymous> (C:\홍익대\홍익 4-1\졸프\ongeul-integrated-0611\ongeul-integrated-0611\ongeul-integrated-0608\backend\src\modules\document\document.controller.ts:13:22)

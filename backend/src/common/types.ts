@@ -1,4 +1,5 @@
 export type DocumentType = 'execution-guide' | 'submission-form' | 'learning-task';
+export type DocumentTypeHintInput = DocumentType | 'auto' | '' | null;
 
 export interface DocumentInfo {
   rawText: string;
@@ -17,10 +18,59 @@ export interface CoreFields {
   warnings: string[];
 }
 
+export type ExtraFieldCategory =
+  | 'schedule'
+  | 'application'
+  | 'place'
+  | 'material'
+  | 'target'
+  | 'condition'
+  | 'contact'
+  | 'warning'
+  | 'learning'
+  | 'other';
+
+export type ExtraFieldImportance = 'high' | 'medium' | 'low';
+
+export interface ExtraField {
+  label: string;
+  value: string;
+  category: ExtraFieldCategory;
+  importance: ExtraFieldImportance;
+  sourceText?: string;
+}
+
+export interface AnalysisSummary {
+  mainSentence: string;
+  primaryItems: Array<{
+    label: string;
+    value: string;
+    source: 'coreFields' | 'extraFields';
+  }>;
+  warningItems: string[];
+}
+
+export interface DifficultWord {
+  word: string;
+  grade: string;
+  meaning: string;
+  example: string;
+  displayMode: {
+    level1: 'inline' | 'tooltip' | 'none';
+    level2: 'tooltip' | 'none';
+    level3: 'tooltip' | 'none';
+  };
+}
+
+export interface EasyTextLevel {
+  text: string;
+  difficultWords: DifficultWord[];
+}
+
 export interface EasyTextLevels {
-  level1: string;
-  level2: string;
-  level3: string;
+  level1: EasyTextLevel;
+  level2: EasyTextLevel;
+  level3: EasyTextLevel;
 }
 
 export interface ActionStep {
@@ -54,6 +104,8 @@ export interface Metadata {
 export interface AnalyzeTextResponse {
   document: DocumentInfo;
   coreFields: CoreFields;
+  extraFields: ExtraField[];
+  summary: AnalysisSummary;
   easyText: EasyTextLevels;
   actionSteps: ActionStep[];
   visuals: VisualPrompt[];
@@ -65,6 +117,15 @@ export interface AnalyzeTextResponse {
 export interface AnalyzeTextRequest {
   text: string;
   title?: string;
+  documentTypeHint?: DocumentTypeHintInput;
+}
+
+export interface AnalyzeImageRequest {
+  imageBase64: string;
+  imageFormat: 'png' | 'jpg' | 'jpeg' | 'pdf';
+  fileName?: string;
+  title?: string;
+  documentTypeHint?: DocumentTypeHintInput;
 }
 
 export interface OutputPlan {

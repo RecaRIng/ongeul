@@ -37,6 +37,24 @@ function compactHangulForMatching(value: string): string {
   return value.replace(/\s+/g, '');
 }
 
+const PURPOSE_TITLE_PATTERNS: Array<[RegExp, number]> = [
+  [/\uC218\uC694\s*\uC870\uC0AC/u, 10],
+  [/\uD76C\uB9DD\s*\uC870\uC0AC/u, 9],
+  [/\uC2E0\uCCAD\s*\uC548\uB0B4/u, 9],
+  [/\uC2E0\uCCAD\uC11C/u, 8],
+  [/\uC870\uC0AC\uC11C/u, 8],
+  [/\uC81C\uCD9C/u, 5],
+  [/\uC2E0\uCCAD/u, 4],
+  [/\uC548\uB0B4/u, 4],
+];
+
+const HEADER_NOISE_PATTERNS: RegExp[] = [
+  /\uAC00\uC815\uD1B5\uC2E0\uBB38/u,
+  /\uCD08\uB4F1\uD559\uAD50|\uC911\uD559\uAD50|\uACE0\uB4F1\uD559\uAD50|\uD559\uAD50\uC7A5/u,
+  /\uAD50\uBB34\uC2E4|\uD589\uC815\uC2E4|\uB2F4\uB2F9\uC790|\uBC1C\uD589\uC790/u,
+  /\uD559\uAD50\s*\uC804\uD654|\uC804\uD654\uBC88\uD638|\uB300\uD45C\uC804\uD654/u,
+];
+
 function removeOuterNoise(value: string): string {
   return value
     .replace(/^[\s"'`*_~\-–—:;|()[\]{}<>]+/, '')
@@ -67,11 +85,21 @@ function scoreTitleLine(line: string, index: number): number {
     }
   }
 
+  let hasPurposeSignal = false;
+  for (const [pattern, weight] of PURPOSE_TITLE_PATTERNS) {
+    if (pattern.test(line)) {
+      score += weight;
+      hasPurposeSignal = true;
+    }
+  }
+
   if (/20\d{2}학년도/.test(line)) score += 1;
   if (line.length < 5) score -= 2;
   if (line.length > 80) score -= 1;
   if (/[.!?。]/.test(line)) score -= 6;
-  if (index <= 3) score += 1;
+  if (index <= 2) score += 6;
+  else if (index <= 5) score += 2;
+  if (index > 15) score -= 5;
 
   if (PHONE_PATTERN.test(line)) score -= 5;
   if (URL_PATTERN.test(line)) score -= 5;
@@ -80,6 +108,14 @@ function scoreTitleLine(line: string, index: number): number {
 
   if (REJECT_KEYWORDS.some(keyword => line.includes(keyword))) {
     score -= 5;
+  }
+
+  if (HEADER_NOISE_PATTERNS.some(pattern => pattern.test(line))) {
+    score -= hasPurposeSignal ? 2 : 9;
+  }
+
+  if (/(?:\uC870\uC0AC\uC11C|\uC2E0\uCCAD\uC11C)\s*$/u.test(line)) {
+    score -= 7;
   }
 
   return score;
@@ -111,6 +147,10 @@ export function extractDocumentTitle(rawText: string, fallbackTitleValue?: strin
 
   if (bestLine && bestScore >= 3) {
     return bestLine;
+  }
+
+  if (lines[0] && scoreTitleLine(lines[0], 0) > -5) {
+    return lines[0];
   }
 
   return fallbackTitle(fallbackTitleValue);

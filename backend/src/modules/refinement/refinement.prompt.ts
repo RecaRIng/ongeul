@@ -1,4 +1,4 @@
-import type { CoreFields, DocumentType } from '../../common/types';
+import type { CoreFields, DocumentType } from '../../common/types.js';
 
 export function buildRefinementPrompt(rawText: string, documentType: DocumentType, coreFields: CoreFields): string {
   return `### MODULE: refinement
@@ -20,12 +20,14 @@ Your job:
    date, time, place, materials, deadline, submissionTarget, actions, warnings.
 4. Add important information that does not fit coreFields into extraFields.
 5. Create a short mainSentence that says what the user needs to know first.
+6. Create primaryItems and warningItems for the result screen.
 
 Rules:
 - Do not invent information that is not in the original text.
 - Preserve Korean date/time/place wording from the source text when possible. Do not rewrite Korean dates into English formats such as "to".
 - Labels in extraFields should be natural Korean labels chosen from the document context.
 - extraFields is a flexible list, not a fixed schema.
+- extraFields.value must be copied or tightly summarized from the original text. Never use a fixed example value.
 - materials means only things the student/parent must bring, prepare, or submit.
 - Provided items such as "기념품 및 간식 제공" are not materials and should usually be omitted from the main summary.
 - If provided items must be kept, put them in extraFields with importance "low".
@@ -38,6 +40,8 @@ Rules:
 - importance must be one of: "high", "medium", "low"
 - documentType must remain one of:
   "execution-guide", "submission-form", "learning-task"
+- Look for document-specific information such as 신청 방법, 신청 기간, 수강 기간, 정원, 모집 방식, 신청 가능 개수, 문자 발송, 수업 없는 날, 문의, 준비물, 제출 방법, 제출 기한, 장소, 대상, 참가비, 복장, 기존 학생 유의사항.
+- These are information types, not fixed values. Use only values found in INPUT_TEXT.
 - Return JSON only. Do not wrap it in markdown.
 
 DOCUMENT_TYPE:
@@ -64,14 +68,22 @@ RESPONSE_FORMAT:
   "extraFields": [
     {
       "label": "신청 방법",
-      "value": "코디마스터(모바일 수강 신청 서비스)",
+      "value": "원문에서 발견한 실제 신청 방법",
       "category": "application",
       "importance": "high",
       "sourceText": "원문에서 근거가 되는 짧은 구절"
     }
   ],
   "summary": {
-    "mainSentence": "사용자가 가장 먼저 알아야 할 핵심 문장"
+    "mainSentence": "사용자가 가장 먼저 알아야 할 핵심 문장",
+    "primaryItems": [
+      {
+        "label": "핵심 항목 이름",
+        "value": "원문에서 추출한 실제 값",
+        "source": "coreFields"
+      }
+    ],
+    "warningItems": []
   }
 }
 `;

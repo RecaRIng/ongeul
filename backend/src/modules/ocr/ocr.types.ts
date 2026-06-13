@@ -64,6 +64,6 @@ export interface ImageFileLike {
 
 export interface Base64ImageInput {
   imageBase64: string;
-  imageFormat: 'png' | 'jpg' | 'jpeg';
+  imageFormat: 'png' | 'jpg' | 'jpeg' | 'pdf';
   fileName?: string;
 }

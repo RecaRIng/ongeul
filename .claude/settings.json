@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($job = Start-Job -ScriptBlock { Set-Location \"c:\\\\홍익대\\\\홍익 4-1\\\\졸프\\\\ongeul-integrated-0611\\\\ongeul-integrated-0611\\\\ongeul-integrated-0608\\\\backend\"; npm run dev 2>&1 }; Start-Sleep -Seconds 6; Receive-Job $job; Write-Output \"---SERVER_START_DONE---\")",
+      "PowerShell($body = '{\"text\":\"2025학년도 여름방학 늘봄+ 프로그램 신청 안내.\\\\n신청기간: 2025년 7월 1일 오전 10시부터 7월 6일 오후 5시까지.\\\\n선착순 정원 20명.\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:4000/api/analyze/text\" -Method POST -Body $body -ContentType \"application/json; charset=utf-8\" -TimeoutSec 90; Write-Output \\(\"level2 text: \" + $r.easyText.level2.text.Substring\\(0, [Math]::Min\\(200, $r.easyText.level2.text.Length\\)\\)\\) } catch { Write-Output $_.Exception.Message; Write-Output $_.ErrorDetails.Message })"
+    ]
+  }
+}

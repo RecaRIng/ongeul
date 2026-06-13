@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BookMarked } from 'lucide-react';
+import { BookMarked, Loader2 } from 'lucide-react';
 import OngleHeader from './components/OngleHeader';
-import InputArea from './components/InputArea';
+import InputArea, { type UploadedDocument } from './components/InputArea';
 import ResultView from './components/ResultView';
 import Vocabulary from './components/Vocabulary';
 import ChildView from './components/ChildView';
@@ -13,6 +13,51 @@ interface VocabularyWord {
   word: string;
   meaning: string;
   examples: string[];
+}
+
+interface DifficultWord {
+  word: string;
+  grade: string;
+  meaning: string;
+  example: string;
+  displayMode: {
+    level1: 'inline' | 'tooltip' | 'none';
+    level2: 'tooltip' | 'none';
+    level3: 'tooltip' | 'none';
+  };
+}
+
+interface EasyTextLevel {
+  text: string;
+  difficultWords: DifficultWord[];
+}
+
+interface ExtraField {
+  label: string;
+  value: string;
+  category:
+    | 'schedule'
+    | 'application'
+    | 'place'
+    | 'material'
+    | 'target'
+    | 'condition'
+    | 'contact'
+    | 'warning'
+    | 'learning'
+    | 'other';
+  importance: 'high' | 'medium' | 'low';
+  sourceText?: string;
+}
+
+interface AnalysisSummary {
+  mainSentence: string;
+  primaryItems: Array<{
+    label: string;
+    value: string;
+    source: 'coreFields' | 'extraFields';
+  }>;
+  warningItems: string[];
 }
 
 interface BackendAnalysis {
@@ -31,10 +76,12 @@ interface BackendAnalysis {
     actions: string[];
     warnings: string[];
   };
+  extraFields?: ExtraField[];
+  summary?: AnalysisSummary;
   easyText: {
-    level1: string;
-    level2: string;
-    level3: string;
+    level1: EasyTextLevel;
+    level2: EasyTextLevel;
+    level3: EasyTextLevel;
   };
   actionSteps: Array<{
     step: number;
@@ -60,6 +107,63 @@ interface BackendAnalysis {
     typeBlocks: string[];
     optionalBlocks: string[];
   };
+}
+
+type DocumentTypeHint = 'execution-guide' | 'submission-form' | 'learning-task';
+
+function LoadingModal() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/30 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-[#e0bda5] bg-white p-6 text-center shadow-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: '#f9f3ef' }}>
+          <Loader2 className="h-7 w-7 animate-spin" style={{ color: '#354d3f' }} />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900">문서를 분석하는 중입니다</h2>
+        <p className="mt-2 text-sm leading-relaxed text-gray-600">OCR과 문서 분석을 함께 처리하고 있어요. 잠시만 기다려주세요.</p>
+      </div>
+    </div>
+  );
+}
+
+function getUploadFormat(file: UploadedDocument): 'png' | 'jpg' | 'jpeg' | 'pdf' {
+  const extension = file.fileName.split('.').pop()?.toLowerCase();
+
+  if (extension === 'pdf') return 'pdf';
+  if (extension === 'png') return 'png';
+  if (extension === 'jpg' || extension === 'jpeg') return extension;
+  if (file.mimeType === 'application/pdf') return 'pdf';
+  if (file.mimeType === 'image/png') return 'png';
+  if (file.mimeType === 'image/jpeg') return 'jpg';
+
+  throw new Error('png, jpg, jpeg, pdf 파일만 업로드할 수 있습니다.');
+}
+
+function getDocumentTypeHint(types: string[]): DocumentTypeHint | undefined {
+  if (types.includes('submission')) return 'submission-form';
+  if (types.includes('learning')) return 'learning-task';
+  if (types.includes('execution')) return 'execution-guide';
+  return undefined;
+}
+
+function getDocumentTypeLabel(type?: string) {
+  switch (type) {
+    case 'execution-guide':
+      return '실행 안내형';
+    case 'submission-form':
+      return '작성·제출형';
+    case 'learning-task':
+      return '학습 수행형';
+    default:
+      return '자동 판별';
+  }
+}
+
+function mapDifficultWords(words: DifficultWord[] | undefined): VocabularyWord[] {
+  return (words || []).map((word) => ({
+    word: word.word,
+    meaning: word.meaning,
+    examples: word.example ? [word.example] : [],
+  }));
 }
 
 export default function App() {
@@ -89,14 +193,9 @@ export default function App() {
 
   const mapBackendResponse = (analysis: BackendAnalysis) => {
     const summaryLines = [
-      `문서 유형: ${analysis.document.documentType}`,
+      analysis.summary?.mainSentence ? `**핵심:** ${analysis.summary.mainSentence}` : '',
+      `문서 유형: ${getDocumentTypeLabel(analysis.document.documentType)}`,
       `제목: ${analysis.document.title}`,
-      analysis.coreFields.date ? `- 날짜: ${analysis.coreFields.date}` : '',
-      analysis.coreFields.time ? `- 시간: ${analysis.coreFields.time}` : '',
-      analysis.coreFields.place ? `- 장소: ${analysis.coreFields.place}` : '',
-      analysis.coreFields.materials.length ? `- 준비물: ${analysis.coreFields.materials.join(', ')}` : '',
-      analysis.coreFields.deadline ? `- 제출기한: ${analysis.coreFields.deadline}` : '',
-      analysis.coreFields.submissionTarget ? `- 제출처: ${analysis.coreFields.submissionTarget}` : '',
     ].filter(Boolean);
 
     const activities = [] as Array<any>;
@@ -143,18 +242,25 @@ export default function App() {
 
     return {
       guideSummary: summaryLines.join('\n'),
-      easyText: analysis.easyText.level2 || '',
-      easierText: analysis.easyText.level1,
-      detailedText: analysis.easyText.level3,
+      easyText: analysis.easyText.level2.text || '',
+      easierText: analysis.easyText.level1.text,
+      detailedText: analysis.easyText.level3.text,
       originalText: analysis.document.rawText,
+      summary: analysis.summary,
+      extraFields: analysis.extraFields || [],
       words: [],
+      wordsByLevel: {
+        easier: analysis.easyText.level1.difficultWords || [],
+        basic: analysis.easyText.level2.difficultWords || [],
+        detailed: analysis.easyText.level3.difficultWords || [],
+      },
       visuals,
       outputPlan,
       activities,
     };
   };
 
-  const handleSubmit = async (text: string, _types: string[]) => {
+  const handleSubmit = async (text: string, types: string[]) => {
     setErrorMessage(null);
     setIsLoading(true);
 
@@ -164,7 +270,10 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text,
+          ...(getDocumentTypeHint(types) ? { documentTypeHint: getDocumentTypeHint(types) } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -178,6 +287,42 @@ export default function App() {
     } catch (error) {
       console.error(error);
       setErrorMessage('문서 분석 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileSubmit = async (file: UploadedDocument, types: string[]) => {
+    setErrorMessage(null);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/analyze/image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64: file.fileBase64,
+          imageFormat: getUploadFormat(file),
+          fileName: file.fileName,
+          title: file.fileName,
+          ...(getDocumentTypeHint(types) ? { documentTypeHint: getDocumentTypeHint(types) } : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'OCR API 호출에 실패했습니다.');
+      }
+
+      const analysis = (await response.json()) as BackendAnalysis;
+      const mapped = mapBackendResponse(analysis);
+      setResult(mapped);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : '';
+      setErrorMessage(message || '문서 이미지/PDF 분석 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -232,8 +377,11 @@ export default function App() {
     return (
       <ChildView
         content={result.easyText}
+        easierContent={result.easierText}
+        detailedContent={result.detailedText}
         originalText={result.originalText || '원문이 없습니다.'}
-        words={result.words}
+        words={result.wordsByLevel?.basic?.length ? mapDifficultWords(result.wordsByLevel.basic) : result.words}
+        wordsByLevel={result.wordsByLevel}
         savedWords={savedWords}
         activities={result.activities}
         onSaveWord={handleSaveWord}
@@ -253,13 +401,13 @@ export default function App() {
           </div>
         )}
         {isLoading && (
-          <div className="max-w-5xl mx-auto px-4 py-4 text-sm text-gray-700 bg-yellow-100 rounded-xl mt-4">
+          <div className="hidden">
             문서를 분석하는 중입니다... 잠시만 기다려주세요.
           </div>
         )}
         {!result ? (
-          <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-            <InputArea onSubmit={handleSubmit} />
+          <div className="flex w-full justify-center min-h-[calc(100vh-200px)]">
+            <InputArea onSubmit={handleSubmit} onFileSubmit={handleFileSubmit} />
           </div>
         ) : (
           <>
@@ -305,6 +453,7 @@ export default function App() {
         onClose={() => setIsVocabOpen(false)}
         onRemove={handleRemoveWord}
       />
+      {isLoading && <LoadingModal />}
     </div>
   );
 }
@@ -318,12 +467,12 @@ function generateMockResult(text: string, type: string) {
     { word: '참가', meaning: '활동이나 행사에 함께하는 것이에요.', examples: ['현장학습에 참가해요. → 현장학습에 같이 가요.'] },
     { word: '신청서', meaning: '무언가를 하고 싶다고 신청하는 종이예요.', examples: ['체험학습 신청서를 써요. → 체험학습에 가고 싶다는 종이를 써요.'] },
     { word: '현장체험학습', meaning: '학교 밖에 나가서 직접 보고 배우는 활동이에요.', examples: ['현장체험학습으로 박물관에 가요. → 학교 밖 박물관에 가서 배워요.'] },
-    { word: '담임선생님', meaning: '우리 반을 담당하시는 선생님이에요.', examples: ['담임선생님께 알림장을 보여드려요.'] }
+    { word: '선생님', meaning: '학교에서 아이를 도와주시는 어른이에요.', examples: ['선생님께 알림장을 보여드려요.'] }
   ];
 
   if (type === 'execution') {
     return {
-      guideSummary: '**문서 유형:** 현장체험학습 안내문\n\n**핵심 정보:**\n- **일정:** 5월 10일 금요일\n- **집합:** 오전 8시 30분까지, 학교 교문 앞\n- **준비물:** 도시락, 물, 운동화\n- **제출:** 참가 신청서\n- **기한:** 5월 3일 금요일까지\n- **제출처:** 담임선생님',
+      guideSummary: '**문서 유형:** 현장체험학습 안내문\n\n**핵심 정보:**\n- **일정:** 5월 10일 금요일\n- **집합:** 오전 8시 30분까지, 학교 교문 앞\n- **준비물:** 도시락, 물, 운동화\n- **제출:** 참가 신청서\n- **기한:** 5월 3일 금요일까지\n- **제출처:** 선생님',
       originalText: `2026학년도 1학기 현장체험학습 실시 안내
 
 본교에서는 학생들의 다양한 체험 기회 제공 및 교육과정과 연계한 현장 학습을 위하여 아래와 같이 현장체험학습을 실시하고자 합니다.
@@ -342,7 +491,7 @@ function generateMockResult(text: string, type: string) {
 많이 걸을 수 있으니 **편한 옷**을 입는 것이 좋아요.
 
 체험학습에 가려면 **참가 신청서**를 내야 해요.
-참가 신청서는 **5월 3일 금요일까지** **담임선생님께** 내요.`,
+참가 신청서는 **5월 3일 금요일까지** **선생님께** 내요.`,
       easierText: `**5월 10일**에 밖으로 공부하러 가요.
 **아침 8시 30분까지** 학교 앞에 와요.
 
@@ -367,7 +516,7 @@ function generateMockResult(text: string, type: string) {
 준비물을 빠뜨리지 않도록 전날 미리 확인하는 것이 좋습니다.
 
 현장체험학습에 참여하려면 반드시 **참가 신청서**를 제출해야 합니다.
-신청서는 **5월 3일 금요일까지 담임선생님께** 제출하면 됩니다.
+신청서는 **5월 3일 금요일까지 선생님께** 제출하면 됩니다.
 신청서를 제출하지 않으면 체험학습에 참여하기 어려울 수 있으니 제출 날짜를 꼭 확인해야 합니다.`,
       words: baseWords,
       activities: [
@@ -404,7 +553,7 @@ function generateMockResult(text: string, type: string) {
             '도시락, 물, 운동화',
             '참가 신청서',
             '5월 3일 금요일',
-            '담임선생님'
+            '선생님'
           ]
         },
         {
@@ -430,7 +579,7 @@ function generateMockResult(text: string, type: string) {
     };
   } else if (type === 'submission') {
     return {
-      guideSummary: '**문서 유형:** 현장체험학습 안내문\n\n**핵심 정보:**\n- **일정:** 5월 10일 금요일\n- **집합:** 오전 8시 30분까지, 학교 교문 앞\n- **준비물:** 도시락, 물, 운동화\n- **제출:** 참가 신청서\n- **기한:** 5월 3일 금요일까지\n- **제출처:** 담임선생님',
+      guideSummary: '**문서 유형:** 현장체험학습 안내문\n\n**핵심 정보:**\n- **일정:** 5월 10일 금요일\n- **집합:** 오전 8시 30분까지, 학교 교문 앞\n- **준비물:** 도시락, 물, 운동화\n- **제출:** 참가 신청서\n- **기한:** 5월 3일 금요일까지\n- **제출처:** 선생님',
       originalText: `2026학년도 1학기 현장체험학습 실시 안내
 
 본교에서는 학생들의 다양한 체험 기회 제공 및 교육과정과 연계한 현장 학습을 위하여 아래와 같이 현장체험학습을 실시하고자 합니다.
@@ -446,7 +595,7 @@ function generateMockResult(text: string, type: string) {
 
 신청서에는 **이름, 참가 여부, 보호자 서명**이 필요해요.
 
-**5월 3일까지** **담임선생님께** 제출해요.`,
+**5월 3일까지** **선생님께** 제출해요.`,
       words: baseWords,
       activities: [
         {
@@ -456,7 +605,7 @@ function generateMockResult(text: string, type: string) {
             '이름을 썼나요?',
             '참가 여부를 골랐나요?',
             '보호자 서명이 있나요?',
-            '담임선생님께 내야 하는 것을 알고 있나요?'
+            '선생님께 내야 하는 것을 알고 있나요?'
           ]
         },
         {
@@ -467,7 +616,7 @@ function generateMockResult(text: string, type: string) {
             '언제까지 내야 하나요?'
           ],
           answers: [
-            '담임선생님',
+            '선생님',
             '5월 3일'
           ]
         }
@@ -475,7 +624,7 @@ function generateMockResult(text: string, type: string) {
     };
   } else {
     return {
-      guideSummary: '**문서 유형:** 현장체험학습 안내문\n\n**핵심 정보:**\n- **일정:** 5월 10일 금요일\n- **집합:** 오전 8시 30분까지, 학교 교문 앞\n- **준비물:** 도시락, 물, 운동화\n- **제출:** 참가 신청서\n- **기한:** 5월 3일 금요일까지\n- **제출처:** 담임선생님',
+      guideSummary: '**문서 유형:** 현장체험학습 안내문\n\n**핵심 정보:**\n- **일정:** 5월 10일 금요일\n- **집합:** 오전 8시 30분까지, 학교 교문 앞\n- **준비물:** 도시락, 물, 운동화\n- **제출:** 참가 신청서\n- **기한:** 5월 3일 금요일까지\n- **제출처:** 선생님',
       originalText: `2026학년도 1학기 현장체험학습 실시 안내
 
 본교에서는 학생들의 다양한 체험 기회 제공 및 교육과정과 연계한 현장 학습을 위하여 아래와 같이 현장체험학습을 실시하고자 합니다.

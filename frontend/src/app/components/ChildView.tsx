@@ -9,6 +9,18 @@ interface Word {
   examples: string[];
 }
 
+interface DifficultWord {
+  word: string;
+  grade: string;
+  meaning: string;
+  example: string;
+  displayMode: {
+    level1: 'inline' | 'tooltip' | 'none';
+    level2: 'tooltip' | 'none';
+    level3: 'tooltip' | 'none';
+  };
+}
+
 interface Activity {
   type: 'checklist' | 'questions' | 'steps' | 'matching';
   title: string;
@@ -21,15 +33,33 @@ interface Activity {
 
 interface ChildViewProps {
   content: string;
+  easierContent?: string;
+  detailedContent?: string;
   originalText: string;
   words: Word[];
+  wordsByLevel?: {
+    easier: DifficultWord[];
+    basic: DifficultWord[];
+    detailed: DifficultWord[];
+  };
   savedWords: Set<string>;
   activities: Activity[];
   onSaveWord: (word: string, meaning: string, examples: string[]) => void;
   onClose: () => void;
 }
 
-export default function ChildView({ content, originalText, words, savedWords, activities, onSaveWord, onClose }: ChildViewProps) {
+export default function ChildView({
+  content,
+  easierContent,
+  detailedContent,
+  originalText,
+  words,
+  wordsByLevel,
+  savedWords,
+  activities,
+  onSaveWord,
+  onClose
+}: ChildViewProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [hintSet, setHintSet] = useState<Set<number>>(new Set());
@@ -399,7 +429,10 @@ export default function ChildView({ content, originalText, words, savedWords, ac
           <div>
             <EasyText
               content={content}
+              easierContent={easierContent}
+              detailedContent={detailedContent}
               words={words}
+              wordsByLevel={wordsByLevel}
               savedWords={savedWords}
               onSaveWord={onSaveWord}
             />
