@@ -188,7 +188,7 @@ function buildFallbackVisuals(coreFields: CoreFields, actionSteps: ActionStep[])
       cardType: 'date_card',
       label: '날짜',
       target: coreFields.date,
-      prompt: `${OBJECT_STYLE_PREFIX}A simple calendar icon for ${coreFields.date}, single centered object only.`,
+      prompt: `${OBJECT_STYLE_PREFIX}A simple calendar icon with a red circle highlight on one date square, no numbers, no text, no letters visible, clean minimal icon.`,
       imageUrl: '',
     });
   }
@@ -198,7 +198,7 @@ function buildFallbackVisuals(coreFields: CoreFields, actionSteps: ActionStep[])
       cardType: 'deadline_card',
       label: '마감일',
       target: coreFields.deadline,
-      prompt: `${OBJECT_STYLE_PREFIX}A simple deadline reminder icon for ${coreFields.deadline}, single centered object only.`,
+      prompt: `${OBJECT_STYLE_PREFIX}A single large circle with a bold X mark or exclamation mark inside, urgency symbol, no text, no numbers, no letters, centered icon only.`,
       imageUrl: '',
     });
   }
