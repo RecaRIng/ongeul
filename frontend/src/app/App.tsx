@@ -257,6 +257,7 @@ export default function App() {
       visuals,
       outputPlan,
       activities,
+      materials: analysis.coreFields.materials || [],
     };
   };
 
@@ -354,6 +355,7 @@ export default function App() {
             visuals={result.visuals || []}
             actionSteps={result.actionSteps || []}
             outputPlan={result.outputPlan}
+            materials={result.materials || []}
           />
         </main>
       </div>

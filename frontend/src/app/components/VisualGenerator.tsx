@@ -24,6 +24,7 @@ interface VisualGeneratorProps {
   easyText?: string;
   visuals?: VisualCard[];
   actionSteps?: ActionStep[];
+  materials?: string[];
 }
 
 interface GeneratedItem {
@@ -33,6 +34,7 @@ interface GeneratedItem {
   description: string;
   source?: string;
   visual?: VisualCard;
+  isLoading?: boolean;
 }
 
 interface Recommendation {
@@ -77,7 +79,7 @@ const ALL_TYPES: { type: ImageType; title: string; short: string; detail: string
 
 const TYPE_TO_CARD_TYPE: Record<ImageType, string> = {
   supplies: 'material_card',
-  activity: 'place_card',
+  activity: 'step_card',
   sequence: 'step_card',
   word: 'warning_card',
 };
@@ -95,6 +97,13 @@ const CARD_TYPE_LABELS: Record<string, string> = {
   warning_card: '주의사항',
   result_card: '결과',
 };
+
+const SCENE_STYLE_PREFIX =
+  'Clean warm pastel spot illustration for a Korean elementary school educational app. Show only the essential people and objects needed to explain the action, transparent background, no full background scenery, no room, no landscape, no playground unless it is the action target, keep every subject clearly separated and anatomically correct, crisp friendly outline, soft but clear colors, high clarity, cute but not babyish, not photorealistic, not blurry watercolor, no text, no letters, no signs, no writing. ';
+
+const MATERIAL_PROMPT_PREFIX =
+  'Clean warm pastel spot illustration for a Korean elementary school educational app. Draw only the named subject as one clear centered object or icon, transparent background, no scenery, no extra objects, no people, crisp friendly outline, soft but clear colors, high clarity, cute but not babyish, not photorealistic, not blurry watercolor, no text, no letters, no signs, no writing. ';
+const MATERIAL_PROMPT_SUFFIX = ', single object only, easy to recognize for a child.';
 
 function makeId(): number {
   return Date.now() + Math.floor(Math.random() * 100000);
@@ -114,19 +123,10 @@ function getCardTitle(visual: VisualCard): string {
 function buildRecommendations(visuals: VisualCard[]): Recommendation[] {
   if (!visuals.length) {
     return [
-      {
-        type: 'supplies',
-        title: '준비물 이미지',
-        description: '문서에서 준비물을 찾으면 카드로 만들 수 있어요.',
-      },
-      {
-        type: 'sequence',
-        title: '순서 이미지',
-        description: '해야 할 일을 순서대로 보여줄 수 있어요.',
-      },
+      { type: 'supplies', title: '준비물 이미지', description: '문서에서 준비물을 찾으면 카드로 만들 수 있어요.' },
+      { type: 'sequence', title: '순서 이미지', description: '해야 할 일을 순서대로 보여줄 수 있어요.' },
     ];
   }
-
   return visuals.map((visual) => ({
     type: visualToType(visual.cardType),
     title: getCardTitle(visual),
@@ -150,7 +150,7 @@ function downloadImage(imageUrl: string | undefined, index: number) {
   document.body.removeChild(link);
 }
 
-export default function VisualGenerator({ originalText = '', easyText = '', visuals = [], actionSteps = [] }: VisualGeneratorProps) {
+export default function VisualGenerator({ originalText = '', easyText = '', visuals = [], actionSteps = [], materials = [] }: VisualGeneratorProps) {
   const [selected, setSelected] = useState<Set<ImageType>>(new Set());
   const [openInfo, setOpenInfo] = useState<ImageType | null>(null);
   const [generated, setGenerated] = useState<GeneratedItem[]>([]);
@@ -158,28 +158,77 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
   const [pendingChoice, setPendingChoice] = useState<Record<string, PendingChoice>>({});
   const [notice, setNotice] = useState('');
   const [regeneratingIds, setRegeneratingIds] = useState<Set<number>>(new Set());
-  const [confirmingTypes, setConfirmingTypes] = useState<Set<ImageType>>(new Set());
+  const [loadingRecKeys, setLoadingRecKeys] = useState<Set<string>>(new Set());
 
   const recommendations = buildRecommendations(visuals);
-  const generatedKeys = new Set(generated.map((item) => (item.visual ? `${item.visual.cardType}:${item.visual.target}` : `manual:${item.type}`)));
+
+  // Exclude in-progress skeletons from generatedKeys so loadingRecKeys handles dedup
+  const generatedKeys = new Set(
+    generated
+      .filter((item) => !item.isLoading)
+      .map((item) => (item.visual ? `${item.visual.cardType}:${item.visual.target}` : `manual:${item.type}`)),
+  );
   const manualMadeTypes = new Set(generated.filter((item) => !item.visual).map((item) => item.type));
 
-  const appendItems = (items: Omit<GeneratedItem, 'id'>[]) => {
+  // ── 추천 시각자료 ──────────────────────────────────────────
+  const handleRecommendClick = async (rec: Recommendation) => {
+    const key = rec.visual ? `${rec.visual.cardType}:${rec.visual.target}` : `manual:${rec.type}`;
+    if (generatedKeys.has(key) || loadingRecKeys.has(key)) return;
+
+    // imageUrl already ready — add instantly
+    if (rec.visual?.imageUrl) {
+      setGenerated((prev) => [
+        ...prev,
+        { id: makeId(), type: rec.type, title: rec.title, description: rec.description, visual: rec.visual },
+      ]);
+      return;
+    }
+
+    // No prompt — add as placeholder (no generation possible)
+    if (!rec.visual?.prompt) {
+      setGenerated((prev) => [
+        ...prev,
+        { id: makeId(), type: rec.type, title: rec.title, description: rec.description, visual: rec.visual },
+      ]);
+      return;
+    }
+
+    // Need to generate — show skeleton while API runs
+    setLoadingRecKeys((prev) => new Set(prev).add(key));
+    const skeletonId = makeId();
     setGenerated((prev) => [
       ...prev,
-      ...items.map((item) => ({
-        ...item,
-        id: makeId(),
-      })),
+      { id: skeletonId, type: rec.type, title: rec.title, description: rec.description, isLoading: true },
     ]);
+
+    try {
+      const { cardType, prompt, target } = rec.visual;
+      const response = await fetch('/api/visual/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, cardType }),
+      });
+      const data = (await response.json()) as { imageUrl?: string; error?: string };
+      if (!response.ok || !data.imageUrl) throw new Error(data.error || '이미지를 만들지 못했어요.');
+
+      const visual: VisualCard = { cardType, label: rec.title, target, prompt, imageUrl: data.imageUrl };
+      setGenerated((prev) =>
+        prev.map((item) => (item.id === skeletonId ? { ...item, isLoading: false, visual } : item)),
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setNotice(`이미지 생성 실패: ${message}`);
+      setGenerated((prev) => prev.filter((item) => item.id !== skeletonId));
+    } finally {
+      setLoadingRecKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
   };
 
-  const handleRecommendClick = (rec: Recommendation) => {
-    const key = rec.visual ? `${rec.visual.cardType}:${rec.visual.target}` : `manual:${rec.type}`;
-    if (generatedKeys.has(key)) return;
-    appendItems([{ type: rec.type, title: rec.title, description: rec.description, visual: rec.visual }]);
-  };
-
+  // ── 직접 선택하기 ──────────────────────────────────────────
   const toggle = (type: ImageType) => {
     if (manualMadeTypes.has(type)) return;
     setSelected((prev) => {
@@ -192,7 +241,6 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
 
   const handleSelectedClick = () => {
     if (!selected.size) return;
-
     const nextTypes = [...selected].filter((type) => !pending.includes(type));
     setPending((prev) => [...prev, ...nextTypes]);
     setPendingChoice((prev) => {
@@ -209,14 +257,85 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
     const meta = ALL_TYPES.find((item) => item.type === type);
     if (!meta) return;
 
-    setConfirmingTypes((prev) => new Set(prev).add(type));
+    // Capture choice before clearing state
+    const choice = pendingChoice[type];
     setNotice('');
 
-    try {
-      if (type === 'sequence' && actionSteps.length > 0) {
-        const results = await Promise.allSettled(
-          actionSteps.map(async (step) => {
-            const stepPrompt = `Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. SCENE: ${step.action}`;
+    // Close the pending panel immediately; skeleton(s) take over as loading feedback
+    setPending((prev) => prev.filter((item) => item !== type));
+    setPendingChoice((prev) => {
+      const next = { ...prev };
+      delete next[type];
+      return next;
+    });
+
+    if (type === 'supplies' && materials.length > 0) {
+      const skeletonIds = materials.map(() => makeId());
+      setGenerated((prev) => [
+        ...prev,
+        ...materials.map((material, i) => ({
+          id: skeletonIds[i],
+          type,
+          title: material,
+          description: meta.short,
+          isLoading: true as const,
+        })),
+      ]);
+
+      let failCount = 0;
+      await Promise.allSettled(
+        materials.map(async (material, i) => {
+          const prompt = `${MATERIAL_PROMPT_PREFIX}${material}${MATERIAL_PROMPT_SUFFIX}`;
+          try {
+            const response = await fetch('/api/visual/regenerate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt, cardType: 'material_card' }),
+            });
+            const data = (await response.json()) as { imageUrl?: string; error?: string };
+            if (!response.ok || !data.imageUrl) throw new Error(data.error || '이미지를 만들지 못했어요.');
+
+            const visual: VisualCard = {
+              cardType: 'material_card',
+              label: material,
+              target: material,
+              prompt,
+              imageUrl: data.imageUrl,
+            };
+            setGenerated((prev) =>
+              prev.map((item) => (item.id === skeletonIds[i] ? { ...item, isLoading: false, visual } : item)),
+            );
+          } catch {
+            failCount++;
+            setGenerated((prev) =>
+              prev.map((item) => (item.id === skeletonIds[i] ? { ...item, isLoading: false } : item)),
+            );
+          }
+        }),
+      );
+
+      if (failCount > 0) {
+        setNotice(`${materials.length}개 준비물 중 ${failCount}개 이미지 생성에 실패했어요.`);
+      }
+    } else if (type === 'sequence' && actionSteps.length > 0) {
+      const skeletonIds = actionSteps.map(() => makeId());
+      setGenerated((prev) => [
+        ...prev,
+        ...actionSteps.map((step, i) => ({
+          id: skeletonIds[i],
+          type,
+          title: `${step.step}. ${step.action}`,
+          description: step.reason || meta.short,
+          isLoading: true as const,
+        })),
+      ]);
+
+      let failCount = 0;
+      await Promise.allSettled(
+        actionSteps.map(async (step, i) => {
+          const sceneTarget = step.visualTarget?.trim() || step.action;
+          const stepPrompt = `${SCENE_STYLE_PREFIX}SCENE: ${sceneTarget}`;
+          try {
             const response = await fetch('/api/visual/regenerate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -224,74 +343,66 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
             });
             const data = (await response.json()) as { imageUrl?: string; error?: string };
             if (!response.ok || !data.imageUrl) throw new Error(data.error || '이미지를 만들지 못했어요.');
-            return { step, imageUrl: data.imageUrl, stepPrompt };
-          }),
-        );
 
-        const items: Omit<GeneratedItem, 'id'>[] = results.map((result, i) => {
-          const step = actionSteps[i];
-          if (result.status === 'fulfilled') {
             const visual: VisualCard = {
               cardType: 'step_card',
               label: `${step.step}단계`,
-              target: step.action,
-              prompt: result.value.stepPrompt,
-              imageUrl: result.value.imageUrl,
+              target: sceneTarget,
+              prompt: stepPrompt,
+              imageUrl: data.imageUrl,
             };
-            return { type, title: `${step.step}. ${step.action}`, description: step.reason || meta.short, visual };
+            setGenerated((prev) =>
+              prev.map((item) => (item.id === skeletonIds[i] ? { ...item, isLoading: false, visual } : item)),
+            );
+          } catch {
+            failCount++;
+            setGenerated((prev) =>
+              prev.map((item) => (item.id === skeletonIds[i] ? { ...item, isLoading: false } : item)),
+            );
           }
-          return { type, title: `${step.step}. ${step.action}`, description: meta.short };
-        });
+        }),
+      );
 
-        appendItems(items);
+      if (failCount > 0) {
+        setNotice(`${actionSteps.length}단계 중 ${failCount}개 이미지 생성에 실패했어요.`);
+      }
+    } else {
+      const source =
+        choice?.mode === 'original'
+          ? choice.portion || originalText
+          : choice?.mode === 'custom'
+            ? choice.custom
+            : choice?.portion || easyText;
 
-        const failCount = results.filter((r) => r.status === 'rejected').length;
-        if (failCount > 0) {
-          setNotice(`${results.length}단계 중 ${failCount}개 이미지 생성에 실패했어요.`);
-        }
-      } else {
-        const choice = pendingChoice[type];
-        const source =
-          choice?.mode === 'original'
-            ? choice.portion || originalText
-            : choice?.mode === 'custom'
-              ? choice.custom
-              : choice?.portion || easyText;
+      if (!source?.trim()) return;
 
-        if (!source.trim()) return;
+      const cardType = TYPE_TO_CARD_TYPE[type];
+      const prompt = `Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. ${source.trim()}`;
 
-        const cardType = TYPE_TO_CARD_TYPE[type];
-        const prompt = `Soft watercolor illustration style, warm colors, gentle shading, clean white background, no text, children's book illustration style. ${source.trim()}`;
+      const skeletonId = makeId();
+      setGenerated((prev) => [
+        ...prev,
+        { id: skeletonId, type, title: meta.title, description: meta.short, isLoading: true },
+      ]);
 
+      try {
         const response = await fetch('/api/visual/regenerate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt, cardType }),
         });
         const data = (await response.json()) as { imageUrl?: string; error?: string };
-
-        if (!response.ok || !data.imageUrl) {
-          throw new Error(data.error || '이미지를 만들지 못했어요.');
-        }
+        if (!response.ok || !data.imageUrl) throw new Error(data.error || '이미지를 만들지 못했어요.');
 
         const visual: VisualCard = { cardType, label: meta.title, target: source.trim(), prompt, imageUrl: data.imageUrl };
-        appendItems([{ type, title: meta.title, description: meta.short, source, visual }]);
+        setGenerated((prev) =>
+          prev.map((item) => (item.id === skeletonId ? { ...item, isLoading: false, visual, source } : item)),
+        );
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setNotice(`이미지 생성 실패: ${message}`);
+        setGenerated((prev) => prev.filter((item) => item.id !== skeletonId));
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setNotice(`이미지 생성 실패: ${message}`);
-    } finally {
-      setConfirmingTypes((prev) => {
-        const next = new Set(prev);
-        next.delete(type);
-        return next;
-      });
-      setPending((prev) => prev.filter((item) => item !== type));
-      setPendingChoice((prev) => {
-        const next = { ...prev };
-        delete next[type];
-        return next;
-      });
     }
   };
 
@@ -302,6 +413,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
     }));
   };
 
+  // ── 다시 생성 ───────────────────────────────────────────────
   const requestRegenerate = async (item: GeneratedItem) => {
     if (!item.visual?.prompt) {
       setNotice('추천 카드에서 생성된 이미지부터 다시 생성할 수 있어요. 직접 선택 기능의 생성 API는 다음 단계에서 연결할 수 있어요.');
@@ -315,17 +427,10 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
       const response = await fetch('/api/visual/regenerate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: item.visual.prompt,
-          cardType: item.visual.cardType,
-          target: item.visual.target,
-        }),
+        body: JSON.stringify({ prompt: item.visual.prompt, cardType: item.visual.cardType, target: item.visual.target }),
       });
       const data = (await response.json()) as { imageUrl?: string; error?: string };
-
-      if (!response.ok || !data.imageUrl) {
-        throw new Error(data.error || '이미지를 다시 만들지 못했어요.');
-      }
+      if (!response.ok || !data.imageUrl) throw new Error(data.error || '이미지를 다시 만들지 못했어요.');
 
       setGenerated((prev) =>
         prev.map((current) =>
@@ -347,9 +452,24 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
     }
   };
 
+  // ── 이미지 영역 렌더 ────────────────────────────────────────
   const renderImageArea = (item: GeneratedItem, index: number) => {
     const imageUrl = item.visual?.imageUrl;
     const isRegenerating = regeneratingIds.has(item.id);
+
+    if (item.isLoading) {
+      return (
+        <div className="bg-gray-50 p-4">
+          <div className="aspect-square overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="h-full w-full animate-pulse bg-gray-200" />
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">
+            <RefreshCw className="h-4 w-4 animate-spin" style={{ color: '#354d3f' }} />
+            <span>이미지 생성 중...</span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="bg-gray-50 p-4">
@@ -400,6 +520,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
     );
   };
 
+  // ── JSX ────────────────────────────────────────────────────
   return (
     <>
       <section className="space-y-6 rounded-xl border border-gray-200 bg-white p-6">
@@ -413,6 +534,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
 
         {notice && <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">{notice}</div>}
 
+        {/* 추천 시각자료 */}
         <div className="rounded-xl border p-5" style={{ backgroundColor: '#f9f3ef', borderColor: '#e0bda5' }}>
           <div className="mb-1 flex items-center gap-2">
             <Sparkles className="h-5 w-5" style={{ color: '#354d3f' }} />
@@ -424,6 +546,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
             {recommendations.map((rec, index) => {
               const key = rec.visual ? `${rec.visual.cardType}:${rec.visual.target}` : `manual:${rec.type}`;
               const alreadyMade = generatedKeys.has(key);
+              const isRecLoading = loadingRecKeys.has(key);
               return (
                 <div key={`${key}-${index}`} className="rounded-lg border border-gray-200 bg-white p-4">
                   <p className="font-semibold text-gray-900">{rec.title}</p>
@@ -431,12 +554,12 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
                   <button
                     type="button"
                     onClick={() => handleRecommendClick(rec)}
-                    disabled={alreadyMade}
+                    disabled={alreadyMade || isRecLoading}
                     className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ backgroundColor: '#354d3f' }}
                   >
-                    <Wand2 className="h-4 w-4" />
-                    {alreadyMade ? '이미 만들었어요' : '이미지 만들기'}
+                    {isRecLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                    {alreadyMade ? '이미 만들었어요' : isRecLoading ? '이미지 생성 중...' : '이미지 만들기'}
                   </button>
                 </div>
               );
@@ -444,6 +567,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
           </div>
         </div>
 
+        {/* 직접 선택하기 */}
         <div>
           <h3 className="mb-1 font-bold text-gray-900">직접 선택하기</h3>
           <p className="mb-4 text-sm text-gray-600">원하는 시각자료 유형을 직접 골라 만들 수 있어요.</p>
@@ -503,6 +627,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
           </div>
         </div>
 
+        {/* 내용 선택 패널 */}
         {pending.length > 0 && (
           <div className="space-y-4">
             {pending.map((type) => {
@@ -571,12 +696,12 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
                     <button
                       type="button"
                       onClick={() => confirmPending(type)}
-                      disabled={!isValid || confirmingTypes.has(type)}
-                      className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-white transition-colors disabled:cursor-wait disabled:opacity-50"
+                      disabled={!isValid}
+                      className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                       style={{ backgroundColor: '#354d3f' }}
                     >
-                      <Wand2 className={`h-4 w-4 ${confirmingTypes.has(type) ? 'animate-spin' : ''}`} />
-                      {confirmingTypes.has(type) ? '이미지 생성 중...' : '이미지 만들기'}
+                      <Wand2 className="h-4 w-4" />
+                      이미지 만들기
                     </button>
                   </div>
                 </div>
@@ -586,6 +711,7 @@ export default function VisualGenerator({ originalText = '', easyText = '', visu
         )}
       </section>
 
+      {/* 생성된 이미지 섹션 */}
       {generated.length > 0 && (
         <section className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
           <h3 className="mb-4 font-bold text-gray-900">생성된 이미지</h3>

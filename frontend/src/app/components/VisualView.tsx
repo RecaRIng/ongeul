@@ -29,9 +29,10 @@ interface VisualViewProps {
   visuals?: VisualCard[];
   actionSteps?: ActionStep[];
   outputPlan?: OutputPlan;
+  materials?: string[];
 }
 
-export default function VisualView({ onBack, originalText, easyText, visuals, actionSteps, outputPlan }: VisualViewProps) {
+export default function VisualView({ onBack, originalText, easyText, visuals, actionSteps, outputPlan, materials }: VisualViewProps) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       <button
@@ -41,7 +42,7 @@ export default function VisualView({ onBack, originalText, easyText, visuals, ac
         <ArrowLeft className="w-4 h-4" />
         결과로 돌아가기
       </button>
-      <VisualGenerator originalText={originalText} easyText={easyText} visuals={visuals} actionSteps={actionSteps} />
+      <VisualGenerator originalText={originalText} easyText={easyText} visuals={visuals} actionSteps={actionSteps} materials={materials} />
     </div>
   );
 }
